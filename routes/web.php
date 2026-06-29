@@ -9,11 +9,7 @@ use App\Http\Controllers\SeguroController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-Route::get('/', function () {
-    $site = json_decode(file_get_contents(resource_path('content.json')), true);
-
-    return Inertia::render('Home', ['site' => $site]);
-});
+Route::get('/', fn () => redirect()->route('dashboard'));
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])
