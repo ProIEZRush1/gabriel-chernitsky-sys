@@ -28,6 +28,23 @@ Route::middleware('auth')->group(function () {
     Route::resource('movimientos', MovimientoBancarioController::class)
         ->parameters(['movimientos' => 'movimiento'])
         ->except('show');
+
+    // Nuevos módulos: la gestión ocurre en el navegador (guardado local). Las rutas
+    // solo renderizan la página; Reportes recibe además los conteos del servidor.
+    Route::get('/clientes', fn () => Inertia::render('Clientes/Index'))->name('clientes.index');
+    Route::get('/mantenimiento', fn () => Inertia::render('Mantenimiento/Index'))->name('mantenimiento.index');
+    Route::get('/auxiliar', fn () => Inertia::render('Auxiliar/Index'))->name('auxiliar.index');
+    Route::get('/documentos', fn () => Inertia::render('Documentos/Index'))->name('documentos.index');
+    Route::get('/configuraciones', fn () => Inertia::render('Configuraciones/Index'))->name('configuraciones.index');
+
+    Route::get('/reportes', fn () => Inertia::render('Reportes/Index', [
+        'server' => [
+            'propiedades' => \App\Models\Propiedad::count(),
+            'seguros' => \App\Models\Seguro::count(),
+            'rentas' => \App\Models\Renta::count(),
+            'movimientos' => \App\Models\MovimientoBancario::count(),
+        ],
+    ]))->name('reportes.index');
 });
 
 require __DIR__.'/auth.php';
