@@ -13,6 +13,10 @@
 /.zed
 /auth.json
 /node_modules
+/.debs
+/.sysroot
+/.playwright-browsers
+/.npm-cache
 /public/fonts-manifest.dev.json
 /public/hot
 /public/storage
