@@ -8,14 +8,22 @@ const props = defineProps({
     propiedades: { type: Array, default: () => [] },
 });
 
+const fecha = (v) => (v ? String(v).substring(0, 10) : '');
+
 const form = useForm({
     propiedad_id: props.renta.propiedad_id ?? null,
     inquilino: props.renta.inquilino ?? '',
     monto_mensual: props.renta.monto_mensual ?? '',
     dia_pago: props.renta.dia_pago ?? 1,
-    fecha_inicio: props.renta.fecha_inicio ? String(props.renta.fecha_inicio).substring(0, 10) : '',
+    dias_gracia: props.renta.dias_gracia ?? 0,
+    fecha_inicio: fecha(props.renta.fecha_inicio),
+    fecha_vencimiento_renta: fecha(props.renta.fecha_vencimiento_renta),
     estado_pago: props.renta.estado_pago ?? 'al_corriente',
     tasa_moratoria: props.renta.tasa_moratoria ?? 0,
+    recargo_fijo: props.renta.recargo_fijo ?? 0,
+    porcentaje_aumento: props.renta.porcentaje_aumento ?? 0,
+    inflacion_periodo: props.renta.inflacion_periodo ?? 0,
+    fecha_ultimo_aumento: fecha(props.renta.fecha_ultimo_aumento),
     meses_adeudo: props.renta.meses_adeudo ?? 0,
     notas: props.renta.notas ?? '',
 });

@@ -15,7 +15,7 @@ class RentaController extends Controller
         $estado = $request->input('estado_pago');
 
         $rentas = Renta::query()
-            ->with('propiedad:id,nombre')
+            ->with(['propiedad:id,nombre', 'pagos'])
             ->when($q, fn ($query) => $query->where('inquilino', 'like', "%{$q}%"))
             ->when($estado, fn ($query) => $query->where('estado_pago', $estado))
             ->latest()
@@ -24,6 +24,12 @@ class RentaController extends Controller
         return Inertia::render('Rentas/Index', [
             'rentas' => $rentas,
             'filters' => ['q' => $q, 'estado_pago' => $estado],
+            'resumen' => [
+                'rentas' => $rentas->count(),
+                'cobrado' => round($rentas->sum(fn ($r) => (float) $r->total_cobrado), 2),
+                'por_cobrar' => round($rentas->sum(fn ($r) => (float) $r->saldo_cuenta), 2),
+                'recargos' => round($rentas->sum(fn ($r) => (float) $r->total_recargos), 2),
+            ],
         ]);
     }
 
@@ -40,6 +46,15 @@ class RentaController extends Controller
 
         return redirect()->route('rentas.index')
             ->with('success', 'Renta registrada correctamente.');
+    }
+
+    public function show(Renta $renta)
+    {
+        $renta->load(['propiedad:id,nombre', 'pagos']);
+
+        return Inertia::render('Rentas/Show', [
+            'renta' => $renta,
+        ]);
     }
 
     public function edit(Renta $renta)
@@ -66,6 +81,27 @@ class RentaController extends Controller
             ->with('success', 'Renta eliminada.');
     }
 
+    /**
+     * Aplica un aumento de renta (manual por porcentaje o automático
+     * según el porcentaje configurado + inflación del periodo).
+     */
+    public function aumentar(Request $request, Renta $renta)
+    {
+        $data = $request->validate([
+            'porcentaje' => ['nullable', 'numeric', 'min:0', 'max:1000'],
+        ]);
+
+        $anterior = (float) $renta->monto_mensual;
+        $nuevo = $renta->aplicarAumento($data['porcentaje'] ?? null);
+
+        $pct = $anterior > 0 ? round((($nuevo - $anterior) / $anterior) * 100, 2) : 0;
+
+        return back()->with(
+            'success',
+            "Renta actualizada: de $".number_format($anterior, 2)." a $".number_format($nuevo, 2)." (+{$pct}%)."
+        );
+    }
+
     private function validateData(Request $request): array
     {
         return $request->validate([
@@ -73,9 +109,15 @@ class RentaController extends Controller
             'inquilino' => ['required', 'string', 'max:255'],
             'monto_mensual' => ['required', 'numeric', 'min:0'],
             'dia_pago' => ['required', 'integer', 'min:1', 'max:31'],
+            'dias_gracia' => ['nullable', 'integer', 'min:0', 'max:60'],
             'fecha_inicio' => ['nullable', 'date'],
+            'fecha_vencimiento_renta' => ['nullable', 'date'],
             'estado_pago' => ['required', 'string', 'max:50'],
             'tasa_moratoria' => ['nullable', 'numeric', 'min:0'],
+            'recargo_fijo' => ['nullable', 'numeric', 'min:0'],
+            'porcentaje_aumento' => ['nullable', 'numeric', 'min:0', 'max:1000'],
+            'inflacion_periodo' => ['nullable', 'numeric', 'min:0', 'max:1000'],
+            'fecha_ultimo_aumento' => ['nullable', 'date'],
             'meses_adeudo' => ['nullable', 'integer', 'min:0'],
             'notas' => ['nullable', 'string'],
         ]);

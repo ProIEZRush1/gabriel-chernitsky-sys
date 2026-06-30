@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\MovimientoBancario;
+use App\Models\PagoRenta;
 use App\Models\Propiedad;
 use App\Models\Renta;
 use App\Models\Seguro;
@@ -112,9 +113,14 @@ class DatabaseSeeder extends Seeder
                 'inquilino' => 'María Fernanda López',
                 'monto_mensual' => 28000,
                 'dia_pago' => 5,
-                'fecha_inicio' => now()->subYear()->toDateString(),
+                'dias_gracia' => 5,
+                'fecha_inicio' => now()->subMonths(6)->startOfMonth()->toDateString(),
+                'fecha_vencimiento_renta' => now()->addMonths(6)->toDateString(),
                 'estado_pago' => 'al_corriente',
                 'tasa_moratoria' => 5,
+                'recargo_fijo' => 350,
+                'porcentaje_aumento' => 4,
+                'inflacion_periodo' => 4.5,
                 'meses_adeudo' => 0,
                 'notas' => 'Contrato a 12 meses con renovación automática.',
             ]);
@@ -124,12 +130,21 @@ class DatabaseSeeder extends Seeder
                 'inquilino' => 'Cafetería Aroma S.A. de C.V.',
                 'monto_mensual' => 45000,
                 'dia_pago' => 1,
-                'fecha_inicio' => now()->subMonths(8)->toDateString(),
+                'dias_gracia' => 3,
+                'fecha_inicio' => now()->subMonths(4)->startOfMonth()->toDateString(),
+                'fecha_vencimiento_renta' => now()->addMonths(8)->toDateString(),
                 'estado_pago' => 'con_adeudo',
                 'tasa_moratoria' => 6,
+                'recargo_fijo' => 500,
+                'porcentaje_aumento' => 5,
+                'inflacion_periodo' => 4.5,
                 'meses_adeudo' => 2,
                 'notas' => 'Adeudo de dos mensualidades, se aplica interés moratorio.',
             ]);
+
+            // Estado de cuenta: el depto está al corriente; el local arrastra adeudo.
+            $this->generarMensualidades($rentaDepto, 6, pagados: 6);
+            $this->generarMensualidades($rentaLocal, 4, pagados: 2);
 
             MovimientoBancario::create([
                 'auxiliar' => 'Cuenta Rentas BBVA',
@@ -159,6 +174,33 @@ class DatabaseSeeder extends Seeder
                 'fecha' => now()->subDays(3)->toDateString(),
                 'referencia' => 'EFEC-0091',
                 'renta_id' => $rentaLocal->id,
+            ]);
+        }
+    }
+
+    /**
+     * Genera $cantidad mensualidades consecutivas (terminando en el mes actual)
+     * y marca como pagadas las primeras $pagados.
+     */
+    private function generarMensualidades(Renta $renta, int $cantidad, int $pagados): void
+    {
+        for ($i = $cantidad - 1; $i >= 0; $i--) {
+            $mes = now()->startOfMonth()->subMonths($i);
+            $periodo = $mes->format('Y-m');
+            [$vencRenta, $vencPago] = $renta->fechasDePeriodo($periodo);
+
+            $pagada = ($cantidad - 1 - $i) < $pagados;
+
+            PagoRenta::create([
+                'renta_id' => $renta->id,
+                'periodo' => $periodo,
+                'monto' => $renta->monto_mensual,
+                'fecha_vencimiento_renta' => $vencRenta->toDateString(),
+                'fecha_vencimiento_pago' => $vencPago->toDateString(),
+                'recargo' => 0,
+                'monto_pagado' => $pagada ? $renta->monto_mensual : 0,
+                'fecha_pago' => $pagada ? $vencRenta->toDateString() : null,
+                'estado' => $pagada ? 'pagado' : 'pendiente',
             ]);
         }
     }

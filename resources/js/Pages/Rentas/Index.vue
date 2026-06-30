@@ -6,6 +6,7 @@ import { Head, Link, router, usePage } from '@inertiajs/vue3';
 const props = defineProps({
     rentas: { type: Array, default: () => [] },
     filters: { type: Object, default: () => ({}) },
+    resumen: { type: Object, default: () => ({}) },
 });
 
 const page = usePage();
@@ -26,6 +27,13 @@ const destroy = (item) => {
         router.delete(route('rentas.destroy', item.id));
     }
 };
+
+const tarjetas = [
+    { key: 'rentas', label: 'Rentas activas', color: 'from-[#7c3aed] to-[#c026d3]', money: false },
+    { key: 'cobrado', label: 'Total cobrado', color: 'from-emerald-500 to-teal-500', money: true },
+    { key: 'por_cobrar', label: 'Por cobrar (adeudo)', color: 'from-rose-500 to-red-500', money: true },
+    { key: 'recargos', label: 'Recargos por mora', color: 'from-amber-500 to-orange-500', money: true },
+];
 </script>
 
 <template>
@@ -33,12 +41,25 @@ const destroy = (item) => {
 
     <AuthenticatedLayout>
         <template #header>
-            <h2 class="text-xl font-bold tracking-tight text-slate-800">Rentas</h2>
+            <h2 class="text-xl font-bold tracking-tight text-slate-800">Rentas y control de pagos</h2>
         </template>
 
         <div class="mx-auto max-w-7xl space-y-6">
             <div v-if="page.props.flash?.success" class="rounded-xl bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
                 {{ page.props.flash.success }}
+            </div>
+            <div v-if="page.props.flash?.error" class="rounded-xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                {{ page.props.flash.error }}
+            </div>
+
+            <!-- Resumen de cartera -->
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div v-for="t in tarjetas" :key="t.key" :class="['rounded-2xl bg-gradient-to-r p-5 text-white shadow-lg', t.color]">
+                    <p class="text-xs font-semibold uppercase tracking-wider opacity-90">{{ t.label }}</p>
+                    <p class="mt-2 text-2xl font-extrabold">
+                        {{ t.money ? currency(resumen[t.key]) : (resumen[t.key] ?? 0) }}
+                    </p>
+                </div>
             </div>
 
             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -65,9 +86,9 @@ const destroy = (item) => {
                             <th class="px-6 py-3">Inquilino</th>
                             <th class="px-6 py-3">Propiedad</th>
                             <th class="px-6 py-3">Renta mensual</th>
-                            <th class="px-6 py-3">Estado de pago</th>
-                            <th class="px-6 py-3">Meses adeudo</th>
-                            <th class="px-6 py-3">Interés moratorio</th>
+                            <th class="px-6 py-3">Estado</th>
+                            <th class="px-6 py-3">Saldo / adeudo</th>
+                            <th class="px-6 py-3">Recargos</th>
                             <th class="px-6 py-3 text-right">Acciones</th>
                         </tr>
                     </thead>
@@ -80,11 +101,15 @@ const destroy = (item) => {
                                 <span :class="['rounded-full px-3 py-1 text-xs font-semibold', item.estado_pago === 'al_corriente' ? 'bg-emerald-100 text-emerald-700' : item.estado_pago === 'con_adeudo' ? 'bg-red-100 text-red-700' : 'bg-violet-100 text-violet-700']">
                                     {{ estados[item.estado_pago] ?? item.estado_pago }}
                                 </span>
+                                <span v-if="item.periodos_vencidos > 0" class="ml-2 rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700">
+                                    {{ item.periodos_vencidos }} venc.
+                                </span>
                             </td>
-                            <td class="px-6 py-4">{{ item.meses_adeudo }}</td>
-                            <td class="px-6 py-4 font-semibold" :class="item.interes_moratorio > 0 ? 'text-red-600' : 'text-slate-400'">{{ currency(item.interes_moratorio) }}</td>
-                            <td class="px-6 py-4 text-right">
-                                <Link :href="route('rentas.edit', item.id)" class="font-semibold text-[#7c3aed] hover:text-[#c026d3]">Editar</Link>
+                            <td class="px-6 py-4 font-semibold" :class="Number(item.saldo_cuenta) > 0 ? 'text-red-600' : 'text-emerald-600'">{{ currency(item.saldo_cuenta) }}</td>
+                            <td class="px-6 py-4" :class="Number(item.total_recargos) > 0 ? 'text-amber-600' : 'text-slate-400'">{{ currency(item.total_recargos) }}</td>
+                            <td class="px-6 py-4 text-right whitespace-nowrap">
+                                <Link :href="route('rentas.show', item.id)" class="font-semibold text-[#7c3aed] hover:text-[#c026d3]">Estado de cuenta</Link>
+                                <Link :href="route('rentas.edit', item.id)" class="ml-4 font-semibold text-slate-500 hover:text-slate-800">Editar</Link>
                                 <button @click="destroy(item)" class="ml-4 font-semibold text-red-500 hover:text-red-700">Eliminar</button>
                             </td>
                         </tr>

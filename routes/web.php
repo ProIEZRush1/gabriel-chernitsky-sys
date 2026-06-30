@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MovimientoBancarioController;
+use App\Http\Controllers\PagoRentaController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PropiedadController;
 use App\Http\Controllers\RentaController;
@@ -24,7 +25,16 @@ Route::middleware('auth')->group(function () {
         ->parameters(['propiedades' => 'propiedade'])
         ->except('show');
     Route::resource('seguros', SeguroController::class)->except('show');
-    Route::resource('rentas', RentaController::class)->except('show');
+    Route::resource('rentas', RentaController::class);
+
+    // Aumentos de renta (manual por % o automático según % + inflación).
+    Route::post('rentas/{renta}/aumentar', [RentaController::class, 'aumentar'])->name('rentas.aumentar');
+
+    // Control de pagos / mensualidades por renta (estado de cuenta).
+    Route::post('rentas/{renta}/pagos', [PagoRentaController::class, 'store'])->name('rentas.pagos.store');
+    Route::post('rentas/{renta}/pagos/generar', [PagoRentaController::class, 'generar'])->name('rentas.pagos.generar');
+    Route::patch('pagos/{pago}', [PagoRentaController::class, 'update'])->name('pagos.update');
+    Route::delete('pagos/{pago}', [PagoRentaController::class, 'destroy'])->name('pagos.destroy');
     Route::resource('movimientos', MovimientoBancarioController::class)
         ->parameters(['movimientos' => 'movimiento'])
         ->except('show');
