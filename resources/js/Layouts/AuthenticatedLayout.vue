@@ -101,7 +101,7 @@ const isActive = (pattern) => route().current(pattern);
 </script>
 
 <template>
-    <div class="min-h-screen bg-slate-50">
+    <div class="min-h-screen bg-gray-100">
         <!-- Sidebar (desktop) -->
         <aside
             class="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-slate-200 bg-white lg:flex"

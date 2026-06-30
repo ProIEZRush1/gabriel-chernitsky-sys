@@ -1,3 +1,1 @@
-Quitamos por completo las ventanitas grises del navegador: ahora todos los avisos, confirmaciones y peticiones de datos se muestran como ventanas elegantes con los colores del sistema. Antes de borrar algo siempre aparece una ventana de "Confirmar / Cancelar", y al crear un documento de texto se abre una ventana con un campo para escribir el nombre.
-
-Cómo verlo: Inicia sesión y entra a cualquier módulo. 1) Borrados: en Rentas, Seguros, Propiedades, Auxiliar bancario, Clientes o Mantenimiento pulsa "Eliminar" → verás la ventana bonita de confirmación. 2) Nombre de archivo: menú "Documentos" → botón "+ Documento de texto en línea" → se abre la ventana que pide el nombre.
+Se aplicó fondo gris claro (#f3f4f6) a toda la pantalla principal del sistema. El cambio se ve en todas las secciones del panel: Inicio, Propiedades, Rentas, Seguros, Auxiliar Bancario, Reportes y demás módulos. Para verlo, simplemente inicie sesión y navegue a cualquier sección del menú lateral.
