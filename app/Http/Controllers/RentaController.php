@@ -50,6 +50,10 @@ class RentaController extends Controller
 
     public function show(Renta $renta)
     {
+        // Las mensualidades se generan automáticamente cada mes (no manualmente):
+        // al abrir el estado de cuenta nos aseguramos de que existan todos los periodos.
+        $renta->generarMensualidadesPendientes();
+
         $renta->load(['propiedad:id,nombre', 'pagos']);
 
         return Inertia::render('Rentas/Show', [
@@ -108,6 +112,8 @@ class RentaController extends Controller
             'propiedad_id' => ['nullable', 'exists:propiedades,id'],
             'inquilino' => ['required', 'string', 'max:255'],
             'monto_mensual' => ['required', 'numeric', 'min:0'],
+            'tiene_iva' => ['nullable', 'boolean'],
+            'iva_tasa' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'dia_pago' => ['required', 'integer', 'min:1', 'max:31'],
             'dias_gracia' => ['nullable', 'integer', 'min:0', 'max:60'],
             'fecha_inicio' => ['nullable', 'date'],

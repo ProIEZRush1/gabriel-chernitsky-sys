@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import { Link } from '@inertiajs/vue3';
@@ -13,6 +13,43 @@ const props = defineProps({
 const inputClass = 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500';
 
 const currency = (v) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(v || 0));
+
+const round2 = (v) => Math.round((Number(v) + Number.EPSILON) * 100) / 100;
+
+// ----- IVA: cálculo interactivo importe antes de IVA <-> total con IVA -----
+// `form.monto_mensual` es siempre el importe ANTES de IVA (lo que se guarda).
+// `totalConIva` es el total con IVA incluido (campo auxiliar de la interfaz).
+const factor = () => 1 + Number(props.form.iva_tasa || 0) / 100;
+
+const totalConIva = ref(
+    round2(Number(props.form.monto_mensual || 0) * (props.form.tiene_iva ? factor() : 1))
+);
+
+// Recordamos qué campo editó el usuario para resolver el cálculo al marcar IVA.
+const fuente = ref('base');
+
+const recalcular = () => {
+    if (fuente.value === 'total') {
+        // Se anotó el total con IVA -> recalculamos el importe antes de IVA.
+        const total = Number(totalConIva.value || 0);
+        props.form.monto_mensual = round2(props.form.tiene_iva ? total / factor() : total);
+    } else {
+        // Se anotó el importe antes de IVA -> recalculamos el total con IVA.
+        const base = Number(props.form.monto_mensual || 0);
+        totalConIva.value = round2(props.form.tiene_iva ? base * factor() : base);
+    }
+};
+
+const onBaseInput = () => { fuente.value = 'base'; recalcular(); };
+const onTotalInput = (e) => { fuente.value = 'total'; totalConIva.value = Number(e.target.value || 0); recalcular(); };
+// Al marcar/desmarcar el check (form.tiene_iva ya cambió por v-model) o cambiar la tasa.
+const onIvaToggle = () => recalcular();
+const onTasaInput = () => recalcular();
+
+const ivaMonto = computed(() => {
+    if (!props.form.tiene_iva) return 0;
+    return round2(Number(props.form.monto_mensual || 0) * Number(props.form.iva_tasa || 0) / 100);
+});
 
 const interesEstimado = computed(() => {
     const monto = Number(props.form.monto_mensual || 0);
@@ -53,8 +90,8 @@ const rentaConAumento = computed(() => currency(Number(props.form.monto_mensual 
             <h3 class="text-sm font-bold uppercase tracking-wider text-[#7c3aed]">Renta mensual y fechas</h3>
             <div class="grid grid-cols-1 gap-6 sm:grid-cols-3">
                 <div>
-                    <InputLabel for="monto_mensual" value="Renta mensual (MXN)" />
-                    <input id="monto_mensual" v-model="form.monto_mensual" type="number" step="0.01" min="0" :class="inputClass" required />
+                    <InputLabel for="monto_mensual" value="Importe antes de IVA (MXN)" />
+                    <input id="monto_mensual" v-model="form.monto_mensual" @input="onBaseInput" type="number" step="0.01" min="0" :class="inputClass" required />
                     <InputError class="mt-2" :message="form.errors.monto_mensual" />
                 </div>
                 <div>
@@ -69,6 +106,37 @@ const rentaConAumento = computed(() => currency(Number(props.form.monto_mensual 
                     <InputError class="mt-2" :message="form.errors.dias_gracia" />
                 </div>
             </div>
+
+            <!-- IVA: check para agregarlo y cálculo interactivo base <-> total -->
+            <div class="rounded-xl border border-violet-100 bg-violet-50/60 p-5">
+                <label class="flex items-center gap-3">
+                    <input id="tiene_iva" v-model="form.tiene_iva" @change="onIvaToggle" type="checkbox" class="h-5 w-5 rounded border-slate-300 text-[#7c3aed] focus:ring-[#7c3aed]" />
+                    <span class="text-sm font-semibold text-slate-700">Esta renta causa IVA (desglosar y agregar al total)</span>
+                </label>
+
+                <div class="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-3">
+                    <div>
+                        <InputLabel for="iva_tasa" value="Tasa de IVA (%)" />
+                        <input id="iva_tasa" v-model="form.iva_tasa" @input="onTasaInput" type="number" step="0.01" min="0" max="100" :class="inputClass" :disabled="!form.tiene_iva" />
+                        <InputError class="mt-2" :message="form.errors.iva_tasa" />
+                    </div>
+                    <div>
+                        <InputLabel for="total_con_iva" value="Total con IVA (MXN)" />
+                        <input id="total_con_iva" :value="totalConIva" @input="onTotalInput" type="number" step="0.01" min="0" :class="inputClass" />
+                        <p class="mt-1 text-xs text-slate-400">Puedes anotar el total con IVA; el importe antes de IVA se ajusta solo.</p>
+                    </div>
+                    <div class="flex items-end">
+                        <div class="w-full rounded-lg bg-white px-3 py-2 text-sm shadow-sm ring-1 ring-slate-100">
+                            <div class="flex justify-between text-slate-500"><span>Subtotal</span><span>{{ currency(form.monto_mensual) }}</span></div>
+                            <div class="flex justify-between" :class="form.tiene_iva ? 'text-violet-700 font-semibold' : 'text-slate-400'">
+                                <span>IVA{{ form.tiene_iva ? ` (${Number(form.iva_tasa || 0)}%)` : '' }}</span><span>{{ currency(ivaMonto) }}</span>
+                            </div>
+                            <div class="mt-1 flex justify-between border-t border-slate-100 pt-1 font-bold text-slate-800"><span>Total</span><span>{{ currency(Number(form.monto_mensual || 0) + ivaMonto) }}</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <div>
                     <InputLabel for="fecha_inicio" value="Inicio del contrato" />

@@ -17,6 +17,8 @@ class Renta extends Model
         'propiedad_id',
         'inquilino',
         'monto_mensual',
+        'tiene_iva',
+        'iva_tasa',
         'dia_pago',
         'dias_gracia',
         'fecha_inicio',
@@ -33,6 +35,8 @@ class Renta extends Model
 
     protected $casts = [
         'monto_mensual' => 'decimal:2',
+        'tiene_iva' => 'boolean',
+        'iva_tasa' => 'decimal:2',
         'tasa_moratoria' => 'decimal:2',
         'recargo_fijo' => 'decimal:2',
         'porcentaje_aumento' => 'decimal:2',
@@ -43,6 +47,8 @@ class Renta extends Model
     ];
 
     protected $appends = [
+        'iva_monto',
+        'monto_con_iva',
         'interes_moratorio',
         'total_adeudo',
         'total_facturado',
@@ -66,6 +72,28 @@ class Renta extends Model
     public function pagos()
     {
         return $this->hasMany(PagoRenta::class)->orderBy('periodo');
+    }
+
+    /**
+     * IVA desglosado de la renta mensual (0 si la renta no causa IVA).
+     */
+    protected function ivaMonto(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => $this->tiene_iva
+                ? round(((float) $this->monto_mensual) * ((float) $this->iva_tasa / 100), 2)
+                : 0.0,
+        );
+    }
+
+    /**
+     * Total mensual con IVA incluido (= importe antes de IVA + IVA).
+     */
+    protected function montoConIva(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => round(((float) $this->monto_mensual) + (float) $this->iva_monto, 2),
+        );
     }
 
     /**
@@ -172,6 +200,47 @@ class Renta extends Model
         $vencimientoPago = $vencimientoRenta->copy()->addDays((int) $this->dias_gracia);
 
         return [$vencimientoRenta, $vencimientoPago];
+    }
+
+    /**
+     * Genera automáticamente las mensualidades pendientes: una por cada mes
+     * desde el inicio del contrato (o el alta de la renta) hasta el mes actual.
+     * Las rentas se generan SOLO de forma automática, no manual.
+     *
+     * @return int Número de mensualidades creadas.
+     */
+    public function generarMensualidadesPendientes(): int
+    {
+        $inicio = $this->fecha_inicio
+            ? Carbon::parse($this->fecha_inicio)
+            : ($this->created_at ? Carbon::parse($this->created_at) : Carbon::today());
+
+        $cursor = $inicio->copy()->startOfMonth();
+        $fin = Carbon::today()->startOfMonth();
+
+        $existentes = $this->pagos()->pluck('periodo')->all();
+        $creadas = 0;
+
+        while ($cursor->lessThanOrEqualTo($fin)) {
+            $periodo = $cursor->format('Y-m');
+            if (! in_array($periodo, $existentes, true)) {
+                [$vencRenta, $vencPago] = $this->fechasDePeriodo($periodo);
+                $this->pagos()->create([
+                    'periodo' => $periodo,
+                    'monto' => (float) $this->monto_mensual,
+                    'fecha_vencimiento_renta' => $vencRenta->toDateString(),
+                    'fecha_vencimiento_pago' => $vencPago->toDateString(),
+                    'recargo' => 0,
+                    'monto_pagado' => 0,
+                    'fecha_pago' => null,
+                    'estado' => 'pendiente',
+                ]);
+                $creadas++;
+            }
+            $cursor->addMonth();
+        }
+
+        return $creadas;
     }
 
     /**

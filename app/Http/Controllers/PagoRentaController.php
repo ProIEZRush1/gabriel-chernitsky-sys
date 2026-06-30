@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\PagoRenta;
 use App\Models\Renta;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class PagoRentaController extends Controller
@@ -37,21 +36,7 @@ class PagoRentaController extends Controller
      */
     public function generar(Renta $renta)
     {
-        $inicio = $renta->fecha_inicio ? Carbon::parse($renta->fecha_inicio) : Carbon::today();
-        $cursor = $inicio->copy()->startOfMonth();
-        $fin = Carbon::today()->startOfMonth();
-
-        $existentes = $renta->pagos()->pluck('periodo')->all();
-        $creadas = 0;
-
-        while ($cursor->lessThanOrEqualTo($fin)) {
-            $periodo = $cursor->format('Y-m');
-            if (! in_array($periodo, $existentes, true)) {
-                $renta->pagos()->create($this->buildAttributes($renta, ['periodo' => $periodo]));
-                $creadas++;
-            }
-            $cursor->addMonth();
-        }
+        $creadas = $renta->generarMensualidadesPendientes();
 
         return back()->with('success', $creadas > 0
             ? "Se generaron {$creadas} mensualidad(es)."

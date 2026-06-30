@@ -28,6 +28,11 @@ const destroy = (item) => {
     }
 };
 
+// Clic en cualquier parte de la fila abre el estado de cuenta de la renta.
+const irAEstadoCuenta = (item) => {
+    router.visit(route('rentas.show', item.id));
+};
+
 const tarjetas = [
     { key: 'rentas', label: 'Rentas activas', color: 'from-[#7c3aed] to-[#c026d3]', money: false },
     { key: 'cobrado', label: 'Total cobrado', color: 'from-emerald-500 to-teal-500', money: true },
@@ -93,10 +98,13 @@ const tarjetas = [
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
-                        <tr v-for="item in rentas" :key="item.id" class="text-sm text-slate-700 hover:bg-slate-50">
+                        <tr v-for="item in rentas" :key="item.id" @click="irAEstadoCuenta(item)" class="cursor-pointer text-sm text-slate-700 hover:bg-violet-50/60">
                             <td class="px-6 py-4 font-semibold text-slate-800">{{ item.inquilino }}</td>
                             <td class="px-6 py-4 text-slate-500">{{ item.propiedad?.nombre ?? '—' }}</td>
-                            <td class="px-6 py-4">{{ currency(item.monto_mensual) }}</td>
+                            <td class="px-6 py-4">
+                                {{ currency(item.monto_mensual) }}
+                                <span v-if="item.tiene_iva" class="ml-1 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-violet-700" :title="`Total con IVA: ${currency(item.monto_con_iva)}`">+IVA</span>
+                            </td>
                             <td class="px-6 py-4">
                                 <span :class="['rounded-full px-3 py-1 text-xs font-semibold', item.estado_pago === 'al_corriente' ? 'bg-emerald-100 text-emerald-700' : item.estado_pago === 'con_adeudo' ? 'bg-red-100 text-red-700' : 'bg-violet-100 text-violet-700']">
                                     {{ estados[item.estado_pago] ?? item.estado_pago }}
@@ -107,7 +115,7 @@ const tarjetas = [
                             </td>
                             <td class="px-6 py-4 font-semibold" :class="Number(item.saldo_cuenta) > 0 ? 'text-red-600' : 'text-emerald-600'">{{ currency(item.saldo_cuenta) }}</td>
                             <td class="px-6 py-4" :class="Number(item.total_recargos) > 0 ? 'text-amber-600' : 'text-slate-400'">{{ currency(item.total_recargos) }}</td>
-                            <td class="px-6 py-4 text-right whitespace-nowrap">
+                            <td class="px-6 py-4 text-right whitespace-nowrap" @click.stop>
                                 <Link :href="route('rentas.show', item.id)" class="font-semibold text-[#7c3aed] hover:text-[#c026d3]">Estado de cuenta</Link>
                                 <Link :href="route('rentas.edit', item.id)" class="ml-4 font-semibold text-slate-500 hover:text-slate-800">Editar</Link>
                                 <button @click="destroy(item)" class="ml-4 font-semibold text-red-500 hover:text-red-700">Eliminar</button>

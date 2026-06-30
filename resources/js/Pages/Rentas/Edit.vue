@@ -14,6 +14,8 @@ const form = useForm({
     propiedad_id: props.renta.propiedad_id ?? null,
     inquilino: props.renta.inquilino ?? '',
     monto_mensual: props.renta.monto_mensual ?? '',
+    tiene_iva: props.renta.tiene_iva ?? false,
+    iva_tasa: props.renta.iva_tasa ?? 16,
     dia_pago: props.renta.dia_pago ?? 1,
     dias_gracia: props.renta.dias_gracia ?? 0,
     fecha_inicio: fecha(props.renta.fecha_inicio),

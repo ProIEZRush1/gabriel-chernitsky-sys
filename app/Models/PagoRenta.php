@@ -37,6 +37,7 @@ class PagoRenta extends Model
 
     protected $appends = [
         'meses_vencido',
+        'iva',
         'recargo_vigente',
         'total_periodo',
         'saldo',
@@ -51,7 +52,22 @@ class PagoRenta extends Model
     private function estaPagado(): bool
     {
         return $this->estado === 'pagado'
-            || ((float) $this->monto_pagado) >= ((float) $this->monto + (float) $this->recargo_vigente);
+            || ((float) $this->monto_pagado) >= (float) $this->total_periodo;
+    }
+
+    /**
+     * IVA desglosado del periodo, según la configuración de la renta.
+     */
+    protected function iva(): Attribute
+    {
+        return Attribute::make(get: function () {
+            $renta = $this->renta;
+            if (! $renta || ! $renta->tiene_iva) {
+                return 0.0;
+            }
+
+            return round(((float) $this->monto) * ((float) $renta->iva_tasa / 100), 2);
+        });
     }
 
     /**
@@ -101,12 +117,12 @@ class PagoRenta extends Model
     }
 
     /**
-     * Total a cobrar del periodo = renta + recargo vigente.
+     * Total a cobrar del periodo = renta + IVA + recargo vigente.
      */
     protected function totalPeriodo(): Attribute
     {
         return Attribute::make(
-            get: fn () => round((float) $this->monto + (float) $this->recargo_vigente, 2),
+            get: fn () => round((float) $this->monto + (float) $this->iva + (float) $this->recargo_vigente, 2),
         );
     }
 

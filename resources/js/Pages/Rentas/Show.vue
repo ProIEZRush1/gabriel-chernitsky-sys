@@ -39,28 +39,6 @@ const aplicarAumento = () => {
     }
 };
 
-// ---- Generar mensualidades ----
-const generar = () => {
-    router.post(route('rentas.pagos.generar', props.renta.id), {}, { preserveScroll: true });
-};
-
-// ---- Nueva mensualidad manual ----
-const hoyPeriodo = new Date().toISOString().substring(0, 7);
-const nuevaForm = useForm({
-    periodo: hoyPeriodo,
-    monto: props.renta.monto_mensual,
-    monto_pagado: 0,
-    recargo: 0,
-    fecha_pago: '',
-    notas: '',
-});
-const registrarMensualidad = () => {
-    nuevaForm.post(route('rentas.pagos.store', props.renta.id), {
-        preserveScroll: true,
-        onSuccess: () => nuevaForm.reset('monto_pagado', 'recargo', 'fecha_pago', 'notas'),
-    });
-};
-
 // ---- Editar / registrar pago de una mensualidad ----
 const editId = ref(null);
 const editForm = useForm({ monto: 0, monto_pagado: 0, recargo: 0, fecha_pago: '', notas: '' });
@@ -97,6 +75,90 @@ const resumen = computed(() => [
     { label: 'Saldo / adeudo', value: props.renta.saldo_cuenta, color: 'from-rose-500 to-red-500' },
     { label: 'Recargos por mora', value: props.renta.total_recargos, color: 'from-amber-500 to-orange-500' },
 ]);
+
+// ---- Vista previa de documentos: contrato de arrendamiento y facturas ----
+const vista = ref(null); // 'contrato' | 'facturas' | null
+const abrirVista = (tipo) => { vista.value = tipo; };
+const limpiar = () => { vista.value = null; };
+
+const fechaLarga = (v) => (v ? new Date(v).toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' }) : '__________');
+
+const marcaFooter = `
+  <div style="margin-top:28px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8;text-align:center">
+    Desarrollado por <a href="https://wa.me/5215594356241" style="color:#7c3aed;font-weight:600;text-decoration:none">Overcloud</a>
+    · ¿Quieres tu sitio? <a href="https://wa.me/5215594356241" style="color:#7c3aed;text-decoration:none">Escríbenos por WhatsApp</a>
+  </div>`;
+
+const contratoHtml = computed(() => {
+    const r = props.renta;
+    const iva = r.tiene_iva
+        ? ` más IVA (${Number(r.iva_tasa).toFixed(2)}%), para un total de <b>${currency(r.monto_con_iva)}</b> mensuales`
+        : ' (renta exenta de IVA)';
+    return `
+  <div style="font-family:Georgia,serif;color:#1e293b;line-height:1.7">
+    <h1 style="text-align:center;font-size:20px;margin:0 0 4px">Contrato de Arrendamiento</h1>
+    <p style="text-align:center;color:#64748b;margin:0 0 18px">${r.propiedad?.nombre ?? 'Inmueble en arrendamiento'}</p>
+    <p>En la Ciudad de México se celebra el presente contrato de arrendamiento entre el <b>ARRENDADOR</b>, Gabriel Chernitsky, y el <b>ARRENDATARIO</b>, <b>${r.inquilino}</b>, respecto del inmueble <b>${r.propiedad?.nombre ?? '__________'}</b>, conforme a las siguientes cláusulas:</p>
+    <p><b>PRIMERA. Renta.</b> El ARRENDATARIO pagará una renta mensual de <b>${currency(r.monto_mensual)}</b>${iva}.</p>
+    <p><b>SEGUNDA. Vencimiento del pago.</b> La renta vence el día <b>${r.dia_pago}</b> de cada mes, con <b>${r.dias_gracia}</b> día(s) de gracia. Transcurrido dicho plazo se aplicará un interés moratorio del <b>${Number(r.tasa_moratoria).toFixed(2)}%</b> mensual${Number(r.recargo_fijo) > 0 ? ` más un recargo fijo de <b>${currency(r.recargo_fijo)}</b>` : ''}.</p>
+    <p><b>TERCERA. Vigencia.</b> El contrato inicia el <b>${fechaLarga(r.fecha_inicio)}</b> y vence el <b>${fechaLarga(r.fecha_vencimiento_renta)}</b>.</p>
+    <p><b>CUARTA. Generación de rentas.</b> Las rentas se generan de forma automática cada mes para su control y cobranza.</p>
+    <div style="display:flex;justify-content:space-between;margin-top:48px;text-align:center">
+      <div style="width:45%;border-top:1px solid #1e293b;padding-top:6px">Gabriel Chernitsky<br><small style="color:#64748b">ARRENDADOR</small></div>
+      <div style="width:45%;border-top:1px solid #1e293b;padding-top:6px">${r.inquilino}<br><small style="color:#64748b">ARRENDATARIO</small></div>
+    </div>
+    ${marcaFooter}
+  </div>`;
+});
+
+const facturasHtml = computed(() => {
+    const r = props.renta;
+    const lista = pagos.value;
+    const filas = lista.map((p) => `
+      <tr>
+        <td style="padding:8px;border-bottom:1px solid #eef2f7">F-${p.periodo}</td>
+        <td style="padding:8px;border-bottom:1px solid #eef2f7">${p.periodo}</td>
+        <td style="padding:8px;border-bottom:1px solid #eef2f7;text-align:right">${currency(p.monto)}</td>
+        <td style="padding:8px;border-bottom:1px solid #eef2f7;text-align:right">${currency(p.iva)}</td>
+        <td style="padding:8px;border-bottom:1px solid #eef2f7;text-align:right;font-weight:bold">${currency(p.total_periodo)}</td>
+      </tr>`).join('');
+    const subtotal = lista.reduce((s, p) => s + Number(p.monto || 0), 0);
+    const ivaTotal = lista.reduce((s, p) => s + Number(p.iva || 0), 0);
+    const total = lista.reduce((s, p) => s + Number(p.total_periodo || 0), 0);
+    return `
+  <div style="font-family:Arial,Helvetica,sans-serif;color:#1e293b">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
+      <div><h1 style="font-size:18px;margin:0">Facturas generadas</h1><p style="margin:2px 0;color:#64748b">Rentas de ${r.inquilino}</p></div>
+      <div style="text-align:right;color:#64748b;font-size:12px">${r.propiedad?.nombre ?? 'Sin propiedad'}<br>IVA: ${r.tiene_iva ? Number(r.iva_tasa).toFixed(2) + '%' : 'No aplica'}</div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="background:#f8fafc;text-align:left;color:#64748b">
+        <th style="padding:8px">Folio</th><th style="padding:8px">Periodo</th>
+        <th style="padding:8px;text-align:right">Subtotal</th><th style="padding:8px;text-align:right">IVA</th><th style="padding:8px;text-align:right">Total</th>
+      </tr></thead>
+      <tbody>${filas || '<tr><td colspan="5" style="padding:16px;text-align:center;color:#94a3b8">Sin mensualidades generadas todavía.</td></tr>'}</tbody>
+      <tfoot><tr style="font-weight:bold;background:#faf5ff">
+        <td colspan="2" style="padding:8px;text-align:right">Totales</td>
+        <td style="padding:8px;text-align:right">${currency(subtotal)}</td>
+        <td style="padding:8px;text-align:right">${currency(ivaTotal)}</td>
+        <td style="padding:8px;text-align:right">${currency(total)}</td>
+      </tr></tfoot>
+    </table>
+    ${marcaFooter}
+  </div>`;
+});
+
+const documentoActual = computed(() => (vista.value === 'contrato' ? contratoHtml.value : facturasHtml.value));
+const tituloVista = computed(() => (vista.value === 'contrato' ? 'Contrato de arrendamiento' : 'Facturas generadas'));
+
+const imprimir = () => {
+    const w = window.open('', '_blank', 'width=820,height=920');
+    if (!w) { alert('Permite las ventanas emergentes para imprimir o descargar el documento.'); return; }
+    w.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${tituloVista.value} — ${props.renta.inquilino}</title></head><body style="margin:32px;background:#fff">${documentoActual.value}</body></html>`);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 250);
+};
 </script>
 
 <template>
@@ -129,8 +191,18 @@ const resumen = computed(() => [
                         </span>
                     </div>
                     <div class="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
-                        <span class="text-slate-400">Renta mensual</span>
+                        <span class="text-slate-400">Renta mensual (sin IVA)</span>
                         <span class="text-right font-bold text-slate-800">{{ currency(renta.monto_mensual) }}</span>
+                        <template v-if="renta.tiene_iva">
+                            <span class="text-slate-400">IVA ({{ Number(renta.iva_tasa).toFixed(2) }}%)</span>
+                            <span class="text-right font-semibold text-violet-700">{{ currency(renta.iva_monto) }}</span>
+                            <span class="text-slate-400">Total con IVA</span>
+                            <span class="text-right font-bold text-slate-800">{{ currency(renta.monto_con_iva) }}</span>
+                        </template>
+                        <template v-else>
+                            <span class="text-slate-400">IVA</span>
+                            <span class="text-right font-semibold text-slate-400">No aplica</span>
+                        </template>
                         <span class="text-slate-400">Día de pago</span>
                         <span class="text-right font-semibold text-slate-700">Día {{ renta.dia_pago }} (+{{ renta.dias_gracia }} gracia)</span>
                         <span class="text-slate-400">Inicio de contrato</span>
@@ -174,38 +246,22 @@ const resumen = computed(() => [
                     <p class="mt-3 text-xs text-slate-400">El aumento automático usa porcentaje manual + inflación del periodo. La renta mensual se actualiza al instante.</p>
                 </div>
 
-                <!-- Registrar mensualidad -->
+                <!-- Documentos: contrato y facturas -->
                 <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                    <div class="flex items-center justify-between">
-                        <h3 class="text-sm font-bold uppercase tracking-wider text-[#7c3aed]">Registrar mensualidad</h3>
-                        <button @click="generar" class="rounded-xl border border-[#7c3aed] px-3 py-1.5 text-xs font-semibold text-[#7c3aed] hover:bg-violet-50">
-                            ⟳ Generar mensualidades
+                    <h3 class="text-sm font-bold uppercase tracking-wider text-[#7c3aed]">Documentos</h3>
+                    <div class="mt-2 flex items-start gap-2 rounded-xl bg-violet-50 px-4 py-3 text-sm text-violet-800">
+                        <span class="text-lg leading-none">⟳</span>
+                        <span>Las mensualidades se <b>generan automáticamente cada mes</b>. No es necesario crearlas a mano.</span>
+                    </div>
+                    <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <button @click="abrirVista('contrato')" type="button" class="rounded-xl border border-[#7c3aed] px-4 py-3 text-sm font-semibold text-[#7c3aed] hover:bg-violet-50">
+                            📄 Vista previa del contrato
+                        </button>
+                        <button @click="abrirVista('facturas')" type="button" class="rounded-xl border border-[#7c3aed] px-4 py-3 text-sm font-semibold text-[#7c3aed] hover:bg-violet-50">
+                            🧾 Facturas generadas
                         </button>
                     </div>
-                    <form @submit.prevent="registrarMensualidad" class="mt-4 space-y-3">
-                        <div class="grid grid-cols-2 gap-3">
-                            <div>
-                                <InputLabel for="periodo" value="Periodo" />
-                                <input id="periodo" v-model="nuevaForm.periodo" type="month" :class="inputClass" required />
-                                <p v-if="nuevaForm.errors.periodo" class="mt-1 text-xs text-red-600">{{ nuevaForm.errors.periodo }}</p>
-                            </div>
-                            <div>
-                                <InputLabel for="monto" value="Renta del periodo" />
-                                <input id="monto" v-model="nuevaForm.monto" type="number" step="0.01" min="0" :class="inputClass" />
-                            </div>
-                            <div>
-                                <InputLabel for="monto_pagado" value="Pagado" />
-                                <input id="monto_pagado" v-model="nuevaForm.monto_pagado" type="number" step="0.01" min="0" :class="inputClass" />
-                            </div>
-                            <div>
-                                <InputLabel for="fecha_pago" value="Fecha de pago" />
-                                <input id="fecha_pago" v-model="nuevaForm.fecha_pago" type="date" :class="inputClass" />
-                            </div>
-                        </div>
-                        <button type="submit" :disabled="nuevaForm.processing" class="w-full rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#c026d3] px-4 py-2 text-sm font-semibold text-white shadow hover:opacity-90 disabled:opacity-50">
-                            + Agregar mensualidad
-                        </button>
-                    </form>
+                    <p class="mt-3 text-xs text-slate-400">Genera una vista previa del contrato de arrendamiento y de las facturas de las rentas; puedes imprimirla, descargarla o limpiarla.</p>
                 </div>
             </div>
 
@@ -222,6 +278,7 @@ const resumen = computed(() => [
                                 <th class="px-4 py-3">Vence renta</th>
                                 <th class="px-4 py-3">Vence pago</th>
                                 <th class="px-4 py-3 text-right">Renta</th>
+                                <th class="px-4 py-3 text-right">IVA</th>
                                 <th class="px-4 py-3 text-right">Recargo</th>
                                 <th class="px-4 py-3 text-right">Total</th>
                                 <th class="px-4 py-3 text-right">Pagado</th>
@@ -232,11 +289,12 @@ const resumen = computed(() => [
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
-                            <tr v-for="p in pagos" :key="p.id" class="text-sm text-slate-700 hover:bg-slate-50">
+                            <tr v-for="p in pagos" :key="p.id" @click="abrirEdicion(p)" class="cursor-pointer text-sm text-slate-700 hover:bg-violet-50/60">
                                 <td class="px-4 py-3 font-semibold text-slate-800">{{ p.periodo }}</td>
                                 <td class="px-4 py-3 text-slate-500">{{ fecha(p.fecha_vencimiento_renta) }}</td>
                                 <td class="px-4 py-3 text-slate-500">{{ fecha(p.fecha_vencimiento_pago) }}</td>
                                 <td class="px-4 py-3 text-right">{{ currency(p.monto) }}</td>
+                                <td class="px-4 py-3 text-right" :class="Number(p.iva) > 0 ? 'text-violet-700' : 'text-slate-400'">{{ currency(p.iva) }}</td>
                                 <td class="px-4 py-3 text-right" :class="Number(p.recargo_vigente) > 0 ? 'text-amber-600 font-semibold' : 'text-slate-400'">{{ currency(p.recargo_vigente) }}</td>
                                 <td class="px-4 py-3 text-right font-semibold">{{ currency(p.total_periodo) }}</td>
                                 <td class="px-4 py-3 text-right text-emerald-600">{{ currency(p.monto_pagado) }}</td>
@@ -245,15 +303,15 @@ const resumen = computed(() => [
                                     <span :class="['rounded-full px-2.5 py-1 text-xs font-semibold capitalize', estadoBadge[p.estado_calculado]]">{{ p.estado_calculado }}</span>
                                 </td>
                                 <td class="px-4 py-3 text-slate-500">{{ fecha(p.fecha_pago) }}</td>
-                                <td class="px-4 py-3 text-right whitespace-nowrap">
+                                <td class="px-4 py-3 text-right whitespace-nowrap" @click.stop>
                                     <button v-if="Number(p.saldo) > 0" @click="liquidar(p)" class="font-semibold text-emerald-600 hover:text-emerald-800">Liquidar</button>
                                     <button @click="abrirEdicion(p)" class="ml-3 font-semibold text-[#7c3aed] hover:text-[#c026d3]">Editar</button>
                                     <button @click="eliminarPago(p)" class="ml-3 font-semibold text-red-500 hover:text-red-700">Eliminar</button>
                                 </td>
                             </tr>
                             <tr v-if="pagos.length === 0">
-                                <td colspan="11" class="px-6 py-10 text-center text-sm text-slate-400">
-                                    Sin mensualidades. Usa «Generar mensualidades» o agrega una manualmente.
+                                <td colspan="12" class="px-6 py-10 text-center text-sm text-slate-400">
+                                    Sin mensualidades. Se generan automáticamente cada mes al abrir el estado de cuenta.
                                 </td>
                             </tr>
                         </tbody>
@@ -294,6 +352,22 @@ const resumen = computed(() => [
                         <button type="submit" :disabled="editForm.processing" class="rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#c026d3] px-5 py-2 text-sm font-semibold text-white shadow hover:opacity-90 disabled:opacity-50">Guardar</button>
                     </div>
                 </form>
+            </div>
+        </div>
+
+        <!-- Modal de vista previa de documentos (contrato / facturas) -->
+        <div v-if="vista" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" @click.self="limpiar">
+            <div class="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-2xl bg-white shadow-2xl">
+                <div class="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+                    <h3 class="text-lg font-bold text-slate-800">{{ tituloVista }}</h3>
+                    <div class="flex gap-2">
+                        <button @click="imprimir" type="button" class="rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#c026d3] px-4 py-2 text-sm font-semibold text-white shadow hover:opacity-90">Imprimir / Descargar</button>
+                        <button @click="limpiar" type="button" class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Limpiar</button>
+                    </div>
+                </div>
+                <div class="overflow-y-auto p-6">
+                    <div class="rounded-xl border border-slate-100 bg-white p-6 shadow-inner" v-html="documentoActual"></div>
+                </div>
             </div>
         </div>
     </AuthenticatedLayout>

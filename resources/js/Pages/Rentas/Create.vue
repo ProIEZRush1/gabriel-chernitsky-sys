@@ -11,6 +11,8 @@ const form = useForm({
     propiedad_id: null,
     inquilino: '',
     monto_mensual: '',
+    tiene_iva: false,
+    iva_tasa: 16,
     dia_pago: 1,
     dias_gracia: 0,
     fecha_inicio: '',
