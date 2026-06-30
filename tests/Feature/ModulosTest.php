@@ -38,6 +38,46 @@ class ModulosTest extends TestCase
         $this->assertSame('Casa Demo', Propiedad::first()->nombre);
     }
 
+    public function test_propiedad_guarda_areas_rentables(): void
+    {
+        $this->actingAs($this->admin())
+            ->post('/propiedades', [
+                'nombre' => 'Plaza Centro',
+                'tipo' => 'local',
+                'direccion' => 'Av. Principal 100',
+                'estado' => 'disponible',
+                'areas' => [
+                    ['nombre' => 'Edificio completo', 'renta' => 50000, 'principal' => true],
+                    ['nombre' => 'Local A', 'renta' => 12000, 'principal' => false],
+                    ['nombre' => 'Piso 2', 'renta' => 8000, 'principal' => false],
+                ],
+            ])->assertRedirect('/propiedades');
+
+        $areas = Propiedad::first()->areas;
+
+        $this->assertCount(3, $areas);
+        // La primera siempre queda como principal.
+        $this->assertTrue($areas[0]['principal']);
+        $this->assertSame('Local A', $areas[1]['nombre']);
+        $this->assertFalse($areas[1]['principal']);
+    }
+
+    public function test_propiedad_sin_areas_recibe_un_area_principal(): void
+    {
+        $this->actingAs($this->admin())
+            ->post('/propiedades', [
+                'nombre' => 'Bodega Sur',
+                'tipo' => 'local',
+                'direccion' => 'Camino Viejo 5',
+                'estado' => 'disponible',
+            ])->assertRedirect('/propiedades');
+
+        $areas = Propiedad::first()->areas;
+
+        $this->assertCount(1, $areas);
+        $this->assertTrue($areas[0]['principal']);
+    }
+
     public function test_seguro_se_guarda_y_persiste(): void
     {
         $this->actingAs($this->admin())

@@ -19,10 +19,12 @@ class Propiedad extends Model
         'valor_comercial',
         'estado',
         'notas',
+        'areas',
     ];
 
     protected $casts = [
         'valor_comercial' => 'decimal:2',
+        'areas' => 'array',
     ];
 
     public function rentas()

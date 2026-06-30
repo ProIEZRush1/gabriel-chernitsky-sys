@@ -93,7 +93,21 @@ const destroy = (item) => {
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                         <tr v-for="item in propiedades" :key="item.id" class="text-sm text-slate-700 hover:bg-slate-50">
-                            <td class="px-6 py-4 font-semibold text-slate-800">{{ item.nombre }}</td>
+                            <td class="px-6 py-4 font-semibold text-slate-800">
+                                {{ item.nombre }}
+                                <div v-if="item.areas && item.areas.length" class="mt-1 flex flex-wrap gap-1">
+                                    <span
+                                        v-for="(area, i) in item.areas"
+                                        :key="i"
+                                        :class="[
+                                            'rounded-full px-2 py-0.5 text-[10px] font-medium',
+                                            area.principal ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-600',
+                                        ]"
+                                    >
+                                        {{ area.nombre }}
+                                    </span>
+                                </div>
+                            </td>
                             <td class="px-6 py-4">{{ tipos[item.tipo] ?? item.tipo }}</td>
                             <td class="px-6 py-4 text-slate-500">{{ item.direccion }}<span v-if="item.ciudad">, {{ item.ciudad }}</span></td>
                             <td class="px-6 py-4">{{ currency(item.valor_comercial) }}</td>

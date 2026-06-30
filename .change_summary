@@ -1,0 +1,3 @@
+Ahora cada propiedad puede tener varias áreas rentables (Local A, Local B, Piso 1, Piso 2, etc.): agrega todas las que necesites, sin límite, y quita las que ya no uses. El área principal (el inmueble que se renta como tal) siempre permanece y no se puede quitar.
+
+Cómo verlo: Inicia sesión → menú "Propiedades" → "Nueva propiedad" (o "Editar" en una existente) → sección "Áreas rentables" → usa "+ Agregar área" para sumar cada espacio y "Quitar" para eliminar las adicionales. En el listado de Propiedades cada área aparece como etiqueta debajo del nombre.

@@ -68,7 +68,7 @@ class PropiedadController extends Controller
 
     private function validateData(Request $request): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'nombre' => ['required', 'string', 'max:255'],
             'tipo' => ['required', 'string', 'max:50'],
             'direccion' => ['required', 'string', 'max:255'],
@@ -76,6 +76,38 @@ class PropiedadController extends Controller
             'valor_comercial' => ['nullable', 'numeric', 'min:0'],
             'estado' => ['required', 'string', 'max:50'],
             'notas' => ['nullable', 'string'],
+            'areas' => ['nullable', 'array'],
+            'areas.*.nombre' => ['required', 'string', 'max:120'],
+            'areas.*.renta' => ['nullable', 'numeric', 'min:0'],
+            'areas.*.principal' => ['nullable', 'boolean'],
         ]);
+
+        $data['areas'] = $this->normalizeAreas($request->input('areas', []));
+
+        return $data;
+    }
+
+    /**
+     * Deja una lista limpia de áreas rentables. La primera (o la marcada como
+     * principal) es el inmueble principal y siempre permanece; las demás se
+     * pueden agregar sin límite y quitar libremente.
+     */
+    private function normalizeAreas($areas): array
+    {
+        $areas = collect(is_array($areas) ? $areas : [])
+            ->map(fn ($a) => [
+                'nombre' => trim((string) ($a['nombre'] ?? '')),
+                'renta' => ($a['renta'] ?? '') === '' || $a['renta'] === null ? null : (float) $a['renta'],
+                'principal' => (bool) ($a['principal'] ?? false),
+            ])
+            ->filter(fn ($a) => $a['nombre'] !== '')
+            ->values();
+
+        if ($areas->isEmpty()) {
+            return [['nombre' => 'Principal', 'renta' => null, 'principal' => true]];
+        }
+
+        // Garantiza que exactamente la primera quede marcada como principal.
+        return $areas->map(fn ($a, $i) => [...$a, 'principal' => $i === 0])->all();
     }
 }
