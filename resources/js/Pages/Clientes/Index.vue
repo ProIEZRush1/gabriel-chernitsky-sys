@@ -5,6 +5,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import AppFooter from '@/Components/AppFooter.vue';
 import FileManager from '@/Components/FileManager.vue';
 import { useStored, uid } from '@/lib/store';
+import { alertWarning, confirmDelete } from '@/lib/swal';
 
 const clientes = useStored('clientes', () => []);
 
@@ -101,7 +102,7 @@ function closeEditor() {
 }
 function save() {
     if (!editing.value.nombre?.trim()) {
-        alert('El nombre es obligatorio.');
+        alertWarning('El nombre es obligatorio.');
         return;
     }
     const exists = clientes.value.some((c) => c.id === editing.value.id);
@@ -110,8 +111,12 @@ function save() {
         : [...clientes.value, editing.value];
     closeEditor();
 }
-function remove(c) {
-    if (!confirm(`¿Eliminar a "${c.nombre}" y todos sus archivos?`)) return;
+async function remove(c) {
+    const ok = await confirmDelete({
+        title: 'Eliminar cliente',
+        text: `Se eliminará a "${c.nombre}" y todos sus archivos. Esta acción no se puede deshacer.`,
+    });
+    if (!ok) return;
     clientes.value = clientes.value.filter((x) => x.id !== c.id);
 }
 

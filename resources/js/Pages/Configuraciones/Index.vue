@@ -5,6 +5,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import AppFooter from '@/Components/AppFooter.vue';
 import { AUX_LISTS, useLists } from '@/lib/auxiliar';
 import { findSimilar, normalize } from '@/lib/similar';
+import { alertWarning, confirmDelete, promptText } from '@/lib/swal';
 
 const lists = useLists();
 
@@ -22,7 +23,7 @@ function tryAdd(listKey, value, replaceIndex) {
     const arr = lists.value[listKey] || [];
     const others = replaceIndex >= 0 ? arr.filter((_, i) => i !== replaceIndex) : arr;
     if (others.some((v) => normalize(v) === normalize(value))) {
-        alert('Ese valor ya existe en la tabla.');
+        alertWarning('Ese valor ya existe en la tabla.');
         return;
     }
     const sim = findSimilar(value, others);
@@ -49,18 +50,27 @@ function cancelPending() {
     pending.value = null;
 }
 
-function editValue(listKey, index) {
+async function editValue(listKey, index) {
     const current = lists.value[listKey][index];
-    const next = prompt('Editar valor:', current);
+    const next = await promptText({
+        title: 'Editar valor',
+        inputLabel: 'Nuevo valor',
+        inputValue: current,
+        confirmButtonText: 'Guardar',
+    });
     if (next == null) return;
     const v = next.trim();
     if (!v || v === current) return;
     tryAdd(listKey, v, index);
 }
 
-function removeValue(listKey, index) {
+async function removeValue(listKey, index) {
     const arr = [...lists.value[listKey]];
-    if (!confirm(`¿Eliminar "${arr[index]}" de la tabla?`)) return;
+    const ok = await confirmDelete({
+        title: 'Eliminar valor',
+        text: `Se eliminará "${arr[index]}" de la tabla.`,
+    });
+    if (!ok) return;
     arr.splice(index, 1);
     lists.value = { ...lists.value, [listKey]: arr };
 }

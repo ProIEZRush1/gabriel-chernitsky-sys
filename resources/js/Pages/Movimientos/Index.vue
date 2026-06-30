@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { confirmDelete } from '@/lib/swal';
 
 const props = defineProps({
     movimientos: { type: Array, default: () => [] },
@@ -24,8 +25,12 @@ const submitFilters = () => {
     router.get(route('movimientos.index'), { q: search.value, tipo: tipo.value }, { preserveState: true, replace: true });
 };
 
-const destroy = (item) => {
-    if (confirm(`¿Eliminar el movimiento "${item.concepto}"?`)) {
+const destroy = async (item) => {
+    const ok = await confirmDelete({
+        title: 'Eliminar movimiento',
+        text: `Se eliminará el movimiento "${item.concepto}". Esta acción no se puede deshacer.`,
+    });
+    if (ok) {
         router.delete(route('movimientos.destroy', item.id));
     }
 };

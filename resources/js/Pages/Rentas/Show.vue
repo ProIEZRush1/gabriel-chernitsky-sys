@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
+import { alertWarning, confirmAction, confirmDelete } from '@/lib/swal';
 
 const props = defineProps({
     renta: { type: Object, required: true },
@@ -33,8 +34,14 @@ const inputClass = 'mt-1 block w-full rounded-md border-gray-300 text-sm shadow-
 // ---- Aumento de renta ----
 const aumentoSugerido = Number(props.renta.porcentaje_aumento_total ?? 0);
 const aumentoForm = useForm({ porcentaje: aumentoSugerido });
-const aplicarAumento = () => {
-    if (confirm(`¿Aplicar un aumento de ${aumentoForm.porcentaje}% a la renta mensual?`)) {
+const aplicarAumento = async () => {
+    const ok = await confirmAction({
+        title: 'Aplicar aumento de renta',
+        text: `¿Aplicar un aumento de ${aumentoForm.porcentaje}% a la renta mensual?`,
+        icon: 'question',
+        confirmButtonText: 'Sí, aplicar',
+    });
+    if (ok) {
         aumentoForm.post(route('rentas.aumentar', props.renta.id), { preserveScroll: true });
     }
 };
@@ -62,8 +69,12 @@ const liquidar = (p) => {
     abrirEdicion(p);
     editForm.monto_pagado = Number(p.total_periodo);
 };
-const eliminarPago = (p) => {
-    if (confirm(`¿Eliminar la mensualidad ${p.periodo}?`)) {
+const eliminarPago = async (p) => {
+    const ok = await confirmDelete({
+        title: 'Eliminar mensualidad',
+        text: `Se eliminará la mensualidad ${p.periodo}. Esta acción no se puede deshacer.`,
+    });
+    if (ok) {
         router.delete(route('pagos.destroy', p.id), { preserveScroll: true });
     }
 };
@@ -153,7 +164,7 @@ const tituloVista = computed(() => (vista.value === 'contrato' ? 'Contrato de ar
 
 const imprimir = () => {
     const w = window.open('', '_blank', 'width=820,height=920');
-    if (!w) { alert('Permite las ventanas emergentes para imprimir o descargar el documento.'); return; }
+    if (!w) { alertWarning('Permite las ventanas emergentes para imprimir o descargar el documento.'); return; }
     w.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${tituloVista.value} — ${props.renta.inquilino}</title></head><body style="margin:32px;background:#fff">${documentoActual.value}</body></html>`);
     w.document.close();
     w.focus();

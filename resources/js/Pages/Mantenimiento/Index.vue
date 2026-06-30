@@ -5,6 +5,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import AppFooter from '@/Components/AppFooter.vue';
 import FileManager from '@/Components/FileManager.vue';
 import { useStored, uid, todayISO } from '@/lib/store';
+import { alertWarning, confirmDelete } from '@/lib/swal';
 
 const registros = useStored('mantenimiento', () => []);
 
@@ -63,7 +64,7 @@ function close() {
 }
 function save() {
     if (!editing.value.inmueble?.trim()) {
-        alert('Indica el inmueble.');
+        alertWarning('Indica el inmueble.');
         return;
     }
     const exists = registros.value.some((r) => r.id === editing.value.id);
@@ -72,8 +73,12 @@ function save() {
         : [...registros.value, editing.value];
     close();
 }
-function remove(r) {
-    if (!confirm('¿Eliminar este registro de mantenimiento?')) return;
+async function remove(r) {
+    const ok = await confirmDelete({
+        title: 'Eliminar mantenimiento',
+        text: '¿Eliminar este registro de mantenimiento?',
+    });
+    if (!ok) return;
     registros.value = registros.value.filter((x) => x.id !== r.id);
 }
 

@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { confirmDelete } from '@/lib/swal';
 
 const props = defineProps({
     seguros: { type: Array, default: () => [] },
@@ -22,8 +23,12 @@ const submitFilters = () => {
     router.get(route('seguros.index'), { q: search.value, ramo: ramo.value }, { preserveState: true, replace: true });
 };
 
-const destroy = (item) => {
-    if (confirm(`¿Eliminar la póliza de "${item.asegurado}"?`)) {
+const destroy = async (item) => {
+    const ok = await confirmDelete({
+        title: 'Eliminar póliza',
+        text: `Se eliminará la póliza de "${item.asegurado}". Esta acción no se puede deshacer.`,
+    });
+    if (ok) {
         router.delete(route('seguros.destroy', item.id));
     }
 };

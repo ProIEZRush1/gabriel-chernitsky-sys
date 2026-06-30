@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { confirmDelete } from '@/lib/swal';
 
 const props = defineProps({
     propiedades: { type: Array, default: () => [] },
@@ -32,8 +33,12 @@ const submitSearch = () => {
     router.get(route('propiedades.index'), { q: search.value }, { preserveState: true, replace: true });
 };
 
-const destroy = (item) => {
-    if (confirm(`¿Eliminar la propiedad "${item.nombre}"?`)) {
+const destroy = async (item) => {
+    const ok = await confirmDelete({
+        title: 'Eliminar propiedad',
+        text: `Se eliminará la propiedad "${item.nombre}". Esta acción no se puede deshacer.`,
+    });
+    if (ok) {
         router.delete(route('propiedades.destroy', item.id));
     }
 };

@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { confirmDelete } from '@/lib/swal';
 
 const props = defineProps({
     rentas: { type: Array, default: () => [] },
@@ -22,8 +23,12 @@ const submitFilters = () => {
     router.get(route('rentas.index'), { q: search.value, estado_pago: estado.value }, { preserveState: true, replace: true });
 };
 
-const destroy = (item) => {
-    if (confirm(`¿Eliminar la renta de "${item.inquilino}"?`)) {
+const destroy = async (item) => {
+    const ok = await confirmDelete({
+        title: 'Eliminar renta',
+        text: `Se eliminará la renta de "${item.inquilino}" y su historial de pagos. Esta acción no se puede deshacer.`,
+    });
+    if (ok) {
         router.delete(route('rentas.destroy', item.id));
     }
 };

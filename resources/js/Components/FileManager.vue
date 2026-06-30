@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { fileToEntry, kind, iconFor, formatSize, downloadEntry, decodeText, encodeText } from '@/lib/files';
+import { confirmDelete, promptText } from '@/lib/swal';
 
 const props = defineProps({
     modelValue: { type: Array, default: () => [] },
@@ -51,14 +52,23 @@ function close() {
     isEditing.value = false;
 }
 
-function remove(entry) {
-    if (!confirm(`¿Eliminar "${entry.name}"?`)) return;
+async function remove(entry) {
+    const ok = await confirmDelete({
+        title: 'Eliminar archivo',
+        text: `Se eliminará "${entry.name}".`,
+    });
+    if (!ok) return;
     update((props.modelValue || []).filter((f) => f.id !== entry.id));
     if (preview.value?.id === entry.id) close();
 }
 
-function rename(entry) {
-    const name = prompt('Nuevo nombre del archivo:', entry.name);
+async function rename(entry) {
+    const name = await promptText({
+        title: 'Renombrar archivo',
+        inputLabel: 'Nuevo nombre del archivo',
+        inputValue: entry.name,
+        confirmButtonText: 'Renombrar',
+    });
     if (name == null || !name.trim()) return;
     patch(entry.id, { name: name.trim() });
 }

@@ -8,6 +8,7 @@ import { useStored, uid, todayISO } from '@/lib/store';
 import { AUX_COLUMNS, useLists } from '@/lib/auxiliar';
 import { normalize } from '@/lib/similar';
 import { toCsv, downloadBlob } from '@/lib/files';
+import { confirmDelete } from '@/lib/swal';
 
 const lists = useLists();
 const rows = useStored('auxiliar', () => []);
@@ -20,8 +21,12 @@ function newRow() {
     rows.value = [...rows.value, row];
 }
 
-function removeRow(id) {
-    if (!confirm('¿Eliminar este renglón del auxiliar?')) return;
+async function removeRow(id) {
+    const ok = await confirmDelete({
+        title: 'Eliminar renglón',
+        text: '¿Eliminar este renglón del auxiliar?',
+    });
+    if (!ok) return;
     rows.value = rows.value.filter((r) => r.id !== id);
 }
 

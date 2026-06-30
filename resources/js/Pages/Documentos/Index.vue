@@ -5,12 +5,19 @@ import AppFooter from '@/Components/AppFooter.vue';
 import FileManager from '@/Components/FileManager.vue';
 import { useStored, uid } from '@/lib/store';
 import { encodeText } from '@/lib/files';
+import { promptText } from '@/lib/swal';
 
 const documentos = useStored('documentos', () => []);
 
 // Crear un documento de texto en línea (editable desde la prevista)
-function nuevoTexto() {
-    const nombre = prompt('Nombre del documento (ej. Contrato.txt):', 'Nuevo documento.txt');
+async function nuevoTexto() {
+    const nombre = await promptText({
+        title: 'Nuevo documento de texto',
+        inputLabel: 'Nombre del documento (ej. Contrato.txt)',
+        inputValue: 'Nuevo documento.txt',
+        inputPlaceholder: 'Nuevo documento.txt',
+        confirmButtonText: 'Crear documento',
+    });
     if (nombre == null) return;
     const name = nombre.trim() || 'Nuevo documento.txt';
     const finalName = /\.(txt|md|csv|html|json)$/i.test(name) ? name : name + '.txt';
