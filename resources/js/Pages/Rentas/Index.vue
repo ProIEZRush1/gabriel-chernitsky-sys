@@ -33,6 +33,21 @@ const destroy = async (item) => {
     }
 };
 
+const generando = ref(false);
+const generarMensualidades = () => {
+    generando.value = true;
+    router.post(route('rentas.generar-todas'), {}, {
+        preserveScroll: true,
+        onFinish: () => { generando.value = false; },
+    });
+};
+
+const estadoCuentaInfo = {
+    adeudo: { label: 'Adeudo', class: 'text-red-600' },
+    pagado: { label: 'Pagado', class: 'text-emerald-600' },
+    excedente: { label: 'Pago excedente', class: 'text-violet-600' },
+};
+
 // Clic en cualquier parte de la fila abre el estado de cuenta de la renta.
 const irAEstadoCuenta = (item) => {
     router.visit(route('rentas.show', item.id));
@@ -84,9 +99,20 @@ const tarjetas = [
                     <button type="submit" class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Buscar</button>
                 </form>
 
-                <Link :href="route('rentas.create')" class="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#c026d3] px-4 py-2 text-sm font-semibold text-white shadow-lg hover:opacity-90">
-                    + Nueva renta
-                </Link>
+                <div class="flex gap-2">
+                    <button
+                        type="button"
+                        @click="generarMensualidades"
+                        :disabled="generando"
+                        title="Genera las mensualidades del mes que aún no existan (esto también ocurre automáticamente cada día 1)."
+                        class="inline-flex items-center justify-center rounded-xl border border-[#7c3aed] px-4 py-2 text-sm font-semibold text-[#7c3aed] hover:bg-violet-50 disabled:opacity-50"
+                    >
+                        ⟳ Generar mensualidades
+                    </button>
+                    <Link :href="route('rentas.create')" class="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#c026d3] px-4 py-2 text-sm font-semibold text-white shadow-lg hover:opacity-90">
+                        + Nueva renta
+                    </Link>
+                </div>
             </div>
 
             <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -97,7 +123,7 @@ const tarjetas = [
                             <th class="px-6 py-3">Propiedad</th>
                             <th class="px-6 py-3">Renta mensual</th>
                             <th class="px-6 py-3">Estado</th>
-                            <th class="px-6 py-3">Saldo / adeudo</th>
+                            <th class="px-6 py-3">Estado de cuenta</th>
                             <th class="px-6 py-3">Recargos</th>
                             <th class="px-6 py-3 text-right">Acciones</th>
                         </tr>
@@ -118,7 +144,12 @@ const tarjetas = [
                                     {{ item.periodos_vencidos }} venc.
                                 </span>
                             </td>
-                            <td class="px-6 py-4 font-semibold" :class="Number(item.saldo_cuenta) > 0 ? 'text-red-600' : 'text-emerald-600'">{{ currency(item.saldo_cuenta) }}</td>
+                            <td class="px-6 py-4 font-semibold" :class="estadoCuentaInfo[item.estado_cuenta]?.class">
+                                <span>{{ estadoCuentaInfo[item.estado_cuenta]?.label ?? item.estado_cuenta }}</span>
+                                <span class="block text-xs font-normal text-slate-400">
+                                    {{ item.estado_cuenta === 'excedente' ? currency(item.excedente) + ' a favor' : currency(item.saldo_cuenta) }}
+                                </span>
+                            </td>
                             <td class="px-6 py-4" :class="Number(item.total_recargos) > 0 ? 'text-amber-600' : 'text-slate-400'">{{ currency(item.total_recargos) }}</td>
                             <td class="px-6 py-4 text-right whitespace-nowrap" @click.stop>
                                 <Link :href="route('rentas.show', item.id)" class="font-semibold text-[#7c3aed] hover:text-[#c026d3]">Estado de cuenta</Link>

@@ -49,6 +49,26 @@ class PagoRenta extends Model
         return $this->belongsTo(Renta::class);
     }
 
+    /**
+     * Fija el monto pagado del periodo y recalcula recargo/estado/fecha de pago
+     * de forma consistente (usado tanto por la edición manual como por los
+     * cobros aplicados automáticamente desde el auxiliar bancario).
+     */
+    public function fijarMontoPagado(float $monto): void
+    {
+        // Se limpia el estado para forzar el cálculo del recargo vigente "en vivo"
+        // (si ya estaba pagado, recargoVigente() devolvería el valor congelado).
+        $this->estado = 'pendiente';
+        $recargo = (float) $this->recargo_vigente;
+        $total = round((float) $this->monto + (float) $this->iva + $recargo, 2);
+
+        $this->recargo = $recargo;
+        $this->monto_pagado = max(0, round($monto, 2));
+        $this->estado = $total > 0 && $this->monto_pagado >= $total ? 'pagado' : ($this->monto_pagado > 0 ? 'parcial' : 'pendiente');
+        $this->fecha_pago = $this->monto_pagado > 0 ? ($this->fecha_pago ?? Carbon::today()) : null;
+        $this->save();
+    }
+
     private function estaPagado(): bool
     {
         return $this->estado === 'pagado'

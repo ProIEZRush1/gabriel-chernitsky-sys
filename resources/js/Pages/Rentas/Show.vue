@@ -7,6 +7,7 @@ import { alertWarning, confirmAction, confirmDelete } from '@/lib/swal';
 
 const props = defineProps({
     renta: { type: Object, required: true },
+    movimientos: { type: Array, default: () => [] },
 });
 
 const page = usePage();
@@ -28,6 +29,32 @@ const estadoBadge = {
     vencido: 'bg-red-100 text-red-700',
     pendiente: 'bg-slate-100 text-slate-600',
 };
+
+const estadoCuentaInfo = {
+    adeudo: { label: 'Con adeudo', class: 'bg-red-100 text-red-700' },
+    pagado: { label: 'Pagado', class: 'bg-emerald-100 text-emerald-700' },
+    excedente: { label: 'Pago excedente', class: 'bg-violet-100 text-violet-700' },
+};
+
+const tiposMovimiento = { pago: 'Pago', transferencia: 'Transferencia', cobro: 'Cobro', deposito: 'Depósito', retiro: 'Retiro' };
+
+// ---- Filtro por fecha / mes (se aplica en el navegador a mensualidades y movimientos) ----
+const filtroMes = ref('');
+const filtroDesde = ref('');
+const filtroHasta = ref('');
+const limpiarFiltro = () => { filtroMes.value = ''; filtroDesde.value = ''; filtroHasta.value = ''; };
+
+const dentroDelRango = (fechaValor) => {
+    if (!fechaValor) return !filtroDesde.value && !filtroHasta.value && !filtroMes.value;
+    const f = String(fechaValor).substring(0, 10);
+    if (filtroMes.value && !f.startsWith(filtroMes.value)) return false;
+    if (filtroDesde.value && f < filtroDesde.value) return false;
+    if (filtroHasta.value && f > filtroHasta.value) return false;
+    return true;
+};
+
+const pagosFiltrados = computed(() => (props.renta.pagos ?? []).filter((p) => dentroDelRango(p.fecha_vencimiento_renta)));
+const movimientosFiltrados = computed(() => props.movimientos.filter((m) => dentroDelRango(m.fecha)));
 
 const inputClass = 'mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500';
 
@@ -83,9 +110,21 @@ const pagos = computed(() => props.renta.pagos ?? []);
 const resumen = computed(() => [
     { label: 'Total facturado', value: props.renta.total_facturado, color: 'from-[#7c3aed] to-[#c026d3]' },
     { label: 'Total cobrado', value: props.renta.total_cobrado, color: 'from-emerald-500 to-teal-500' },
-    { label: 'Saldo / adeudo', value: props.renta.saldo_cuenta, color: 'from-rose-500 to-red-500' },
+    Number(props.renta.excedente) > 0
+        ? { label: 'Pago excedente (a favor)', value: props.renta.excedente, color: 'from-violet-500 to-fuchsia-500' }
+        : { label: 'Adeudo', value: props.renta.saldo_cuenta, color: 'from-rose-500 to-red-500' },
     { label: 'Recargos por mora', value: props.renta.total_recargos, color: 'from-amber-500 to-orange-500' },
 ]);
+
+// ---- Generar mensualidades manualmente (además de lo automático cada día 1) ----
+const generando = ref(false);
+const generarMensualidades = () => {
+    generando.value = true;
+    router.post(route('rentas.pagos.generar', props.renta.id), {}, {
+        preserveScroll: true,
+        onFinish: () => { generando.value = false; },
+    });
+};
 
 // ---- Vista previa de documentos: contrato de arrendamiento y facturas ----
 const vista = ref(null); // 'contrato' | 'facturas' | null
@@ -200,6 +239,9 @@ const imprimir = () => {
                         <span :class="['mt-2 inline-block rounded-full px-3 py-1 text-xs font-semibold', renta.estado_pago === 'al_corriente' ? 'bg-emerald-100 text-emerald-700' : renta.estado_pago === 'con_adeudo' ? 'bg-red-100 text-red-700' : 'bg-violet-100 text-violet-700']">
                             {{ estadosPago[renta.estado_pago] ?? renta.estado_pago }}
                         </span>
+                        <span :class="['mt-2 ml-2 inline-block rounded-full px-3 py-1 text-xs font-semibold', estadoCuentaInfo[renta.estado_cuenta]?.class]">
+                            {{ estadoCuentaInfo[renta.estado_cuenta]?.label ?? renta.estado_cuenta }}
+                        </span>
                     </div>
                     <div class="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
                         <span class="text-slate-400">Renta mensual (sin IVA)</span>
@@ -260,9 +302,14 @@ const imprimir = () => {
                 <!-- Documentos: contrato y facturas -->
                 <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                     <h3 class="text-sm font-bold uppercase tracking-wider text-[#7c3aed]">Documentos</h3>
-                    <div class="mt-2 flex items-start gap-2 rounded-xl bg-violet-50 px-4 py-3 text-sm text-violet-800">
-                        <span class="text-lg leading-none">⟳</span>
-                        <span>Las mensualidades se <b>generan automáticamente cada mes</b>. No es necesario crearlas a mano.</span>
+                    <div class="mt-2 flex items-start justify-between gap-2 rounded-xl bg-violet-50 px-4 py-3 text-sm text-violet-800">
+                        <span class="flex items-start gap-2">
+                            <span class="text-lg leading-none">⟳</span>
+                            <span>Las mensualidades se generan <b>automáticamente el día 1 de cada mes</b>, o de forma manual con el botón.</span>
+                        </span>
+                        <button @click="generarMensualidades" :disabled="generando" type="button" class="shrink-0 rounded-lg border border-violet-300 bg-white px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100 disabled:opacity-50">
+                            Generar ahora
+                        </button>
                     </div>
                     <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <button @click="abrirVista('contrato')" type="button" class="rounded-xl border border-[#7c3aed] px-4 py-3 text-sm font-semibold text-[#7c3aed] hover:bg-violet-50">
@@ -276,10 +323,29 @@ const imprimir = () => {
                 </div>
             </div>
 
+            <!-- Filtro por fecha / mes: aplica a mensualidades y movimientos -->
+            <div class="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div>
+                    <InputLabel for="f_mes" value="Mes" />
+                    <input id="f_mes" v-model="filtroMes" type="month" :class="inputClass" />
+                </div>
+                <div>
+                    <InputLabel for="f_desde" value="Desde" />
+                    <input id="f_desde" v-model="filtroDesde" type="date" :class="inputClass" />
+                </div>
+                <div>
+                    <InputLabel for="f_hasta" value="Hasta" />
+                    <input id="f_hasta" v-model="filtroHasta" type="date" :class="inputClass" />
+                </div>
+                <button type="button" @click="limpiarFiltro" class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+                    Quitar filtro
+                </button>
+            </div>
+
             <!-- Tabla de mensualidades -->
             <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div class="border-b border-slate-100 px-6 py-4">
-                    <h3 class="text-sm font-bold uppercase tracking-wider text-slate-600">Detalle de mensualidades</h3>
+                    <h3 class="text-sm font-bold uppercase tracking-wider text-slate-600">Rentas generadas (cuentas por cobrar)</h3>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-slate-200">
@@ -300,7 +366,7 @@ const imprimir = () => {
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
-                            <tr v-for="p in pagos" :key="p.id" @click="abrirEdicion(p)" class="cursor-pointer text-sm text-slate-700 hover:bg-violet-50/60">
+                            <tr v-for="p in pagosFiltrados" :key="p.id" @click="abrirEdicion(p)" class="cursor-pointer text-sm text-slate-700 hover:bg-violet-50/60">
                                 <td class="px-4 py-3 font-semibold text-slate-800">{{ p.periodo }}</td>
                                 <td class="px-4 py-3 text-slate-500">{{ fecha(p.fecha_vencimiento_renta) }}</td>
                                 <td class="px-4 py-3 text-slate-500">{{ fecha(p.fecha_vencimiento_pago) }}</td>
@@ -320,14 +386,60 @@ const imprimir = () => {
                                     <button @click="eliminarPago(p)" class="ml-3 font-semibold text-red-500 hover:text-red-700">Eliminar</button>
                                 </td>
                             </tr>
-                            <tr v-if="pagos.length === 0">
+                            <tr v-if="pagosFiltrados.length === 0">
                                 <td colspan="12" class="px-6 py-10 text-center text-sm text-slate-400">
-                                    Sin mensualidades. Se generan automáticamente cada mes al abrir el estado de cuenta.
+                                    {{ pagos.length === 0 ? 'Sin mensualidades. Se generan automáticamente cada día 1 de mes, o de forma manual.' : 'Ninguna mensualidad coincide con el filtro de fecha.' }}
                                 </td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
+            </div>
+
+            <!-- Movimientos del auxiliar bancario ligados a esta renta -->
+            <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div class="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+                    <h3 class="text-sm font-bold uppercase tracking-wider text-slate-600">Movimientos y pagos realizados (auxiliar bancario)</h3>
+                    <Link :href="route('movimientos.create')" class="text-sm font-semibold text-[#7c3aed] hover:text-[#c026d3]">+ Registrar movimiento</Link>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-slate-200">
+                        <thead class="bg-slate-50">
+                            <tr class="text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                <th class="px-4 py-3">Fecha</th>
+                                <th class="px-4 py-3">Auxiliar</th>
+                                <th class="px-4 py-3">Concepto</th>
+                                <th class="px-4 py-3">Tipo</th>
+                                <th class="px-4 py-3 text-right">Monto</th>
+                                <th class="px-4 py-3 text-right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            <tr v-for="m in movimientosFiltrados" :key="m.id" class="text-sm text-slate-700 hover:bg-violet-50/60">
+                                <td class="px-4 py-3 text-slate-500">{{ fecha(m.fecha) }}</td>
+                                <td class="px-4 py-3">{{ m.auxiliar }}</td>
+                                <td class="px-4 py-3">{{ m.concepto }}<span v-if="m.referencia" class="block text-xs text-slate-400">Ref: {{ m.referencia }}</span></td>
+                                <td class="px-4 py-3">
+                                    <span :class="['rounded-full px-2.5 py-1 text-xs font-semibold', m.tipo === 'cobro' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600']">
+                                        {{ tiposMovimiento[m.tipo] ?? m.tipo }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3 text-right font-semibold" :class="m.tipo === 'cobro' ? 'text-emerald-600' : 'text-slate-700'">{{ currency(m.monto) }}</td>
+                                <td class="px-4 py-3 text-right">
+                                    <Link :href="route('movimientos.edit', m.id)" class="font-semibold text-[#7c3aed] hover:text-[#c026d3]">Editar</Link>
+                                </td>
+                            </tr>
+                            <tr v-if="movimientosFiltrados.length === 0">
+                                <td colspan="6" class="px-6 py-10 text-center text-sm text-slate-400">
+                                    {{ movimientos.length === 0 ? 'Aún no hay movimientos del auxiliar bancario ligados a este arrendatario.' : 'Ningún movimiento coincide con el filtro de fecha.' }}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="border-t border-slate-100 px-6 py-3 text-xs text-slate-400">
+                    Los movimientos de tipo "Cobro" ligados a este arrendatario se descuentan automáticamente de su adeudo.
+                </p>
             </div>
         </div>
 

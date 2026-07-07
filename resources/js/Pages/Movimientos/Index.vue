@@ -12,6 +12,9 @@ const props = defineProps({
 const page = usePage();
 const search = ref(props.filters.q ?? '');
 const tipo = ref(props.filters.tipo ?? '');
+const mes = ref(props.filters.mes ?? '');
+const desde = ref(props.filters.desde ?? '');
+const hasta = ref(props.filters.hasta ?? '');
 
 const tipos = { pago: 'Pago', transferencia: 'Transferencia', cobro: 'Cobro', deposito: 'Depósito', retiro: 'Retiro' };
 const ingresos = ['cobro', 'deposito'];
@@ -22,7 +25,20 @@ const currency = (v) =>
 const fmtDate = (d) => (d ? String(d).substring(0, 10) : '—');
 
 const submitFilters = () => {
-    router.get(route('movimientos.index'), { q: search.value, tipo: tipo.value }, { preserveState: true, replace: true });
+    router.get(route('movimientos.index'), {
+        q: search.value,
+        tipo: tipo.value,
+        mes: mes.value,
+        desde: desde.value,
+        hasta: hasta.value,
+    }, { preserveState: true, replace: true });
+};
+
+const limpiarFiltroFecha = () => {
+    mes.value = '';
+    desde.value = '';
+    hasta.value = '';
+    submitFilters();
 };
 
 const destroy = async (item) => {
@@ -66,6 +82,24 @@ const destroy = async (item) => {
                 <Link :href="route('movimientos.create')" class="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#c026d3] px-4 py-2 text-sm font-semibold text-white shadow-lg hover:opacity-90">
                     + Nuevo movimiento
                 </Link>
+            </div>
+
+            <div class="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500">Mes</label>
+                    <input v-model="mes" @change="submitFilters" type="month" class="mt-1 rounded-md border-slate-300 text-sm shadow-sm focus:border-[#7c3aed] focus:ring-[#7c3aed]" />
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500">Desde</label>
+                    <input v-model="desde" @change="submitFilters" type="date" class="mt-1 rounded-md border-slate-300 text-sm shadow-sm focus:border-[#7c3aed] focus:ring-[#7c3aed]" />
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500">Hasta</label>
+                    <input v-model="hasta" @change="submitFilters" type="date" class="mt-1 rounded-md border-slate-300 text-sm shadow-sm focus:border-[#7c3aed] focus:ring-[#7c3aed]" />
+                </div>
+                <button type="button" @click="limpiarFiltroFecha" class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+                    Quitar filtro de fecha
+                </button>
             </div>
 
             <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">

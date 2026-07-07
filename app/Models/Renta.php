@@ -30,6 +30,7 @@ class Renta extends Model
         'inflacion_periodo',
         'fecha_ultimo_aumento',
         'meses_adeudo',
+        'excedente',
         'notas',
     ];
 
@@ -41,6 +42,7 @@ class Renta extends Model
         'recargo_fijo' => 'decimal:2',
         'porcentaje_aumento' => 'decimal:2',
         'inflacion_periodo' => 'decimal:2',
+        'excedente' => 'decimal:2',
         'fecha_inicio' => 'date',
         'fecha_vencimiento_renta' => 'date',
         'fecha_ultimo_aumento' => 'date',
@@ -57,6 +59,7 @@ class Renta extends Model
         'saldo_cuenta',
         'periodos_vencidos',
         'porcentaje_aumento_total',
+        'estado_cuenta',
     ];
 
     public function propiedad()
@@ -187,6 +190,24 @@ class Renta extends Model
     }
 
     /**
+     * Estado de cuenta simplificado del arrendatario:
+     * "excedente" (pagó de más), "adeudo" (debe) o "pagado" (a mano, sin deber ni sobrar).
+     */
+    protected function estadoCuenta(): Attribute
+    {
+        return Attribute::make(get: function () {
+            if (((float) $this->excedente) > 0) {
+                return 'excedente';
+            }
+            if (((float) $this->saldo_cuenta) > 0) {
+                return 'adeudo';
+            }
+
+            return 'pagado';
+        });
+    }
+
+    /**
      * Calcula las fechas de vencimiento (renta y pago) para un periodo "YYYY-MM".
      *
      * @return array{0: Carbon, 1: Carbon}
@@ -241,6 +262,76 @@ class Renta extends Model
         }
 
         return $creadas;
+    }
+
+    /**
+     * Aplica un movimiento bancario de tipo "cobro" contra el adeudo de esta renta:
+     * abona a la mensualidad pendiente más antigua primero y va corriendo hacia las
+     * siguientes. Lo que sobre después de cubrir todas las mensualidades generadas
+     * se guarda como pago excedente (saldo a favor del arrendatario).
+     *
+     * Es aditivo (no reinicia lo ya registrado manualmente en cada mensualidad) y
+     * guarda en el propio movimiento el detalle de lo aplicado para poder revertirlo
+     * de forma exacta si el movimiento se edita o se elimina.
+     */
+    public function aplicarCobro(MovimientoBancario $movimiento): void
+    {
+        if ($movimiento->tipo !== 'cobro') {
+            return;
+        }
+
+        $this->generarMensualidadesPendientes();
+
+        $restante = round((float) $movimiento->monto, 2);
+        $detalle = [];
+
+        foreach ($this->pagos()->orderBy('periodo')->get() as $pago) {
+            if ($restante <= 0) {
+                break;
+            }
+            $saldoPeriodo = (float) $pago->saldo;
+            if ($saldoPeriodo <= 0) {
+                continue;
+            }
+
+            $aplicado = round(min($restante, $saldoPeriodo), 2);
+            $pago->fijarMontoPagado((float) $pago->monto_pagado + $aplicado);
+            $detalle[] = ['pago_renta_id' => $pago->id, 'monto' => $aplicado];
+            $restante = round($restante - $aplicado, 2);
+        }
+
+        if ($restante > 0) {
+            $this->excedente = round((float) $this->excedente + $restante, 2);
+            $this->save();
+        }
+
+        $movimiento->aplicado_detalle = $detalle;
+        $movimiento->excedente_aplicado = max(0, round($restante, 2));
+        $movimiento->save();
+    }
+
+    /**
+     * Revierte exactamente lo que un movimiento de cobro había aplicado
+     * (mensualidades y/o excedente), usando el detalle guardado al aplicarlo.
+     */
+    public function revertirCobro(MovimientoBancario $movimiento): void
+    {
+        foreach ((array) ($movimiento->aplicado_detalle ?? []) as $entry) {
+            $pago = $this->pagos()->find($entry['pago_renta_id'] ?? null);
+            if (! $pago) {
+                continue;
+            }
+            $pago->fijarMontoPagado(max(0, (float) $pago->monto_pagado - (float) $entry['monto']));
+        }
+
+        if ((float) $movimiento->excedente_aplicado > 0) {
+            $this->excedente = max(0, round((float) $this->excedente - (float) $movimiento->excedente_aplicado, 2));
+            $this->save();
+        }
+
+        $movimiento->aplicado_detalle = [];
+        $movimiento->excedente_aplicado = 0;
+        $movimiento->save();
     }
 
     /**

@@ -13,6 +13,9 @@ class MovimientoBancarioController extends Controller
     {
         $q = $request->input('q');
         $tipo = $request->input('tipo');
+        $mes = $request->input('mes');
+        $desde = $request->input('desde');
+        $hasta = $request->input('hasta');
 
         $movimientos = MovimientoBancario::query()
             ->with('renta:id,inquilino')
@@ -21,12 +24,15 @@ class MovimientoBancarioController extends Controller
                 ->orWhere('auxiliar', 'like', "%{$q}%")
                 ->orWhere('referencia', 'like', "%{$q}%")))
             ->when($tipo, fn ($query) => $query->where('tipo', $tipo))
-            ->latest()
+            ->when($mes, fn ($query) => $query->whereRaw("strftime('%Y-%m', fecha) = ?", [$mes]))
+            ->when($desde, fn ($query) => $query->whereDate('fecha', '>=', $desde))
+            ->when($hasta, fn ($query) => $query->whereDate('fecha', '<=', $hasta))
+            ->latest('fecha')
             ->get();
 
         return Inertia::render('Movimientos/Index', [
             'movimientos' => $movimientos,
-            'filters' => ['q' => $q, 'tipo' => $tipo],
+            'filters' => ['q' => $q, 'tipo' => $tipo, 'mes' => $mes, 'desde' => $desde, 'hasta' => $hasta],
         ]);
     }
 
@@ -39,7 +45,11 @@ class MovimientoBancarioController extends Controller
 
     public function store(Request $request)
     {
-        MovimientoBancario::create($this->validateData($request));
+        $movimiento = MovimientoBancario::create($this->validateData($request));
+
+        if ($movimiento->tipo === 'cobro' && $movimiento->renta_id) {
+            $movimiento->renta->aplicarCobro($movimiento);
+        }
 
         return redirect()->route('movimientos.index')
             ->with('success', 'Movimiento bancario registrado correctamente.');
@@ -55,7 +65,18 @@ class MovimientoBancarioController extends Controller
 
     public function update(Request $request, MovimientoBancario $movimiento)
     {
+        // Si el movimiento ya era un cobro aplicado a una renta, primero se revierte
+        // exactamente lo que había aplicado antes de guardar los nuevos datos.
+        if ($movimiento->tipo === 'cobro' && $movimiento->renta_id) {
+            $movimiento->renta->revertirCobro($movimiento);
+        }
+
         $movimiento->update($this->validateData($request));
+        $movimiento->refresh();
+
+        if ($movimiento->tipo === 'cobro' && $movimiento->renta_id) {
+            $movimiento->renta->aplicarCobro($movimiento);
+        }
 
         return redirect()->route('movimientos.index')
             ->with('success', 'Movimiento actualizado correctamente.');
@@ -63,6 +84,10 @@ class MovimientoBancarioController extends Controller
 
     public function destroy(MovimientoBancario $movimiento)
     {
+        if ($movimiento->tipo === 'cobro' && $movimiento->renta_id) {
+            $movimiento->renta->revertirCobro($movimiento);
+        }
+
         $movimiento->delete();
 
         return redirect()->route('movimientos.index')

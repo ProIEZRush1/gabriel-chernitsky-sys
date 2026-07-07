@@ -15,11 +15,16 @@ class RentaController extends Controller
         $estado = $request->input('estado_pago');
 
         $rentas = Renta::query()
-            ->with(['propiedad:id,nombre', 'pagos'])
+            ->with('propiedad:id,nombre')
             ->when($q, fn ($query) => $query->where('inquilino', 'like', "%{$q}%"))
             ->when($estado, fn ($query) => $query->where('estado_pago', $estado))
             ->latest()
             ->get();
+
+        // Genera las mensualidades pendientes de cada renta (cuenta por cobrar al día).
+        // Los cobros del auxiliar bancario ya se aplican en tiempo real al registrarse.
+        $rentas->each(fn (Renta $renta) => $renta->generarMensualidadesPendientes());
+        $rentas->load('pagos');
 
         return Inertia::render('Rentas/Index', [
             'rentas' => $rentas,
@@ -50,14 +55,18 @@ class RentaController extends Controller
 
     public function show(Renta $renta)
     {
-        // Las mensualidades se generan automáticamente cada mes (no manualmente):
-        // al abrir el estado de cuenta nos aseguramos de que existan todos los periodos.
+        // Las mensualidades se generan automáticamente cada mes (o manualmente desde
+        // el botón "Generar mensualidades"). Los cobros del auxiliar bancario ya se
+        // aplican en tiempo real cuando se registran.
         $renta->generarMensualidadesPendientes();
 
+        // Se cargan completas (totales y filtros de fecha/mes se resuelven en el navegador).
         $renta->load(['propiedad:id,nombre', 'pagos']);
+        $movimientos = $renta->movimientos()->latest('fecha')->get();
 
         return Inertia::render('Rentas/Show', [
             'renta' => $renta,
+            'movimientos' => $movimientos,
         ]);
     }
 
@@ -83,6 +92,22 @@ class RentaController extends Controller
 
         return redirect()->route('rentas.index')
             ->with('success', 'Renta eliminada.');
+    }
+
+    /**
+     * Genera manualmente las mensualidades pendientes de TODAS las rentas
+     * (lo mismo que ocurre automáticamente cada día 1 de mes).
+     */
+    public function generarTodas()
+    {
+        $creadas = 0;
+        foreach (Renta::all() as $renta) {
+            $creadas += $renta->generarMensualidadesPendientes();
+        }
+
+        return back()->with('success', $creadas > 0
+            ? "Se generaron {$creadas} mensualidad(es) en total."
+            : 'No hay mensualidades nuevas por generar; todo está al día.');
     }
 
     /**

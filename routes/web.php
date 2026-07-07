@@ -27,6 +27,10 @@ Route::middleware('auth')->group(function () {
     Route::resource('seguros', SeguroController::class)->except('show');
     Route::resource('rentas', RentaController::class);
 
+    // Genera manualmente las rentas (cuentas por cobrar) de TODOS los arrendatarios.
+    // De forma automática ocurre cada día 1 de mes (ver routes/console.php).
+    Route::post('rentas/generar-mensualidades', [RentaController::class, 'generarTodas'])->name('rentas.generar-todas');
+
     // Aumentos de renta (manual por % o automático según % + inflación).
     Route::post('rentas/{renta}/aumentar', [RentaController::class, 'aumentar'])->name('rentas.aumentar');
 

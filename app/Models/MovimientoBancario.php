@@ -24,6 +24,8 @@ class MovimientoBancario extends Model
     protected $casts = [
         'monto' => 'decimal:2',
         'fecha' => 'date',
+        'aplicado_detalle' => 'array',
+        'excedente_aplicado' => 'decimal:2',
     ];
 
     public function renta()

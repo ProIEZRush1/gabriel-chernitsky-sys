@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\MovimientoBancario;
 use App\Models\PagoRenta;
 use App\Models\Renta;
 use App\Models\User;
@@ -122,5 +123,68 @@ class RentaControlTest extends TestCase
             ->assertRedirect();
 
         $this->assertEquals(11000, $renta->refresh()->monto_mensual);
+    }
+
+    public function test_movimiento_de_cobro_descuenta_el_adeudo_de_la_renta(): void
+    {
+        $renta = $this->renta(['fecha_inicio' => now()->startOfMonth()->toDateString()]);
+        $renta->generarMensualidadesPendientes(); // 1 mensualidad de $10,000.
+
+        $this->actingAs($this->admin())->post(route('movimientos.store'), [
+            'auxiliar' => 'Cuenta Rentas BBVA',
+            'tipo' => 'cobro',
+            'concepto' => 'Cobro de renta Ana López',
+            'monto' => 10000,
+            'fecha' => now()->toDateString(),
+            'renta_id' => $renta->id,
+        ])->assertRedirect();
+
+        $renta->refresh()->load('pagos');
+        $this->assertEquals(0, $renta->saldo_cuenta);
+        $this->assertEquals('pagado', $renta->estado_cuenta);
+        $this->assertEquals('pagado', $renta->pagos->first()->estado_calculado);
+    }
+
+    public function test_movimiento_de_cobro_que_excede_lo_facturado_queda_como_excedente(): void
+    {
+        $renta = $this->renta(['fecha_inicio' => now()->startOfMonth()->toDateString(), 'tasa_moratoria' => 0, 'recargo_fijo' => 0]);
+        $renta->generarMensualidadesPendientes(); // 1 mensualidad de $10,000.
+
+        $this->actingAs($this->admin())->post(route('movimientos.store'), [
+            'auxiliar' => 'Cuenta Rentas BBVA',
+            'tipo' => 'cobro',
+            'concepto' => 'Cobro de renta Ana López',
+            'monto' => 15000,
+            'fecha' => now()->toDateString(),
+            'renta_id' => $renta->id,
+        ])->assertRedirect();
+
+        $renta->refresh();
+        $this->assertEquals(5000, (float) $renta->excedente);
+        $this->assertEquals('excedente', $renta->estado_cuenta);
+    }
+
+    public function test_eliminar_movimiento_de_cobro_revierte_el_pago_aplicado(): void
+    {
+        $renta = $this->renta(['fecha_inicio' => now()->startOfMonth()->toDateString(), 'tasa_moratoria' => 0, 'recargo_fijo' => 0]);
+        $renta->generarMensualidadesPendientes();
+
+        $movimiento = MovimientoBancario::create([
+            'auxiliar' => 'Cuenta Rentas BBVA',
+            'tipo' => 'cobro',
+            'concepto' => 'Cobro de renta',
+            'monto' => 10000,
+            'fecha' => now()->toDateString(),
+            'renta_id' => $renta->id,
+        ]);
+        $renta->aplicarCobro($movimiento);
+
+        $this->assertEquals(0, $renta->refresh()->saldo_cuenta);
+
+        $this->actingAs($this->admin())
+            ->delete(route('movimientos.destroy', $movimiento))
+            ->assertRedirect();
+
+        $this->assertEquals(10000, (float) $renta->refresh()->saldo_cuenta);
     }
 }
