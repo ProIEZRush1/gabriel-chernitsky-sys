@@ -25,10 +25,17 @@ Route::middleware('auth')->group(function () {
         ->parameters(['propiedades' => 'propiedade'])
         ->except('show');
     Route::resource('seguros', SeguroController::class)->except('show');
+
+    // Reporte de todas las rentas generadas (mensualidades), filtrable por
+    // inquilino/fechas/importes. Debe ir antes del resource para no chocar
+    // con la ruta de detalle rentas/{renta}.
+    Route::get('rentas/reporte', [RentaController::class, 'reporte'])->name('rentas.reporte');
+
     Route::resource('rentas', RentaController::class);
 
-    // Genera manualmente las rentas (cuentas por cobrar) de TODOS los arrendatarios.
-    // De forma automática ocurre cada día 1 de mes (ver routes/console.php).
+    // Genera manualmente las rentas (cuentas por cobrar) de TODOS los arrendatarios,
+    // del mes/año elegido ("Generar rentas del mes"). De forma automática ocurre
+    // cada día 1 de mes (ver routes/console.php).
     Route::post('rentas/generar-mensualidades', [RentaController::class, 'generarTodas'])->name('rentas.generar-todas');
 
     // Aumentos de renta (manual por % o automático según % + inflación).

@@ -33,10 +33,12 @@ const destroy = async (item) => {
     }
 };
 
+const hoyISO = new Date().toISOString();
+const periodoGenerar = ref(hoyISO.substring(0, 7));
 const generando = ref(false);
 const generarMensualidades = () => {
     generando.value = true;
-    router.post(route('rentas.generar-todas'), {}, {
+    router.post(route('rentas.generar-todas'), { periodo: periodoGenerar.value }, {
         preserveScroll: true,
         onFinish: () => { generando.value = false; },
     });
@@ -99,16 +101,25 @@ const tarjetas = [
                     <button type="submit" class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Buscar</button>
                 </form>
 
-                <div class="flex gap-2">
+                <div class="flex flex-wrap items-center gap-2">
+                    <input
+                        v-model="periodoGenerar"
+                        type="month"
+                        title="Mes/año a generar"
+                        class="rounded-xl border-slate-300 text-sm shadow-sm focus:border-[#7c3aed] focus:ring-[#7c3aed]"
+                    />
                     <button
                         type="button"
                         @click="generarMensualidades"
                         :disabled="generando"
-                        title="Genera las mensualidades del mes que aún no existan (esto también ocurre automáticamente cada día 1)."
+                        title="Genera la renta de cada arrendatario (cuenta por cobrar) del mes/año elegido; no duplica lo que ya exista."
                         class="inline-flex items-center justify-center rounded-xl border border-[#7c3aed] px-4 py-2 text-sm font-semibold text-[#7c3aed] hover:bg-violet-50 disabled:opacity-50"
                     >
-                        ⟳ Generar mensualidades
+                        ⟳ Generar rentas del mes
                     </button>
+                    <Link :href="route('rentas.reporte')" class="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+                        Reporte
+                    </Link>
                     <Link :href="route('rentas.create')" class="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#c026d3] px-4 py-2 text-sm font-semibold text-white shadow-lg hover:opacity-90">
                         + Nueva renta
                     </Link>

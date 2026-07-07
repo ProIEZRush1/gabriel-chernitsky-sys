@@ -192,6 +192,45 @@ class RentaControlTest extends TestCase
         $this->assertSame('al_corriente', $renta->refresh()->estado_pago);
     }
 
+    public function test_generar_mensualidades_manual_respeta_el_periodo_mes_anio_elegido(): void
+    {
+        $admin = $this->admin();
+        $renta = $this->renta(['fecha_inicio' => now()->subMonths(3)->startOfMonth()->toDateString()]);
+        $periodoPasado = now()->subMonths(2)->format('Y-m');
+
+        // Se pide generar solo hasta un mes anterior al actual: no debe crear
+        // mensualidades más allá de ese periodo.
+        $this->actingAs($admin)
+            ->post(route('rentas.generar-todas'), ['periodo' => $periodoPasado])
+            ->assertRedirect();
+
+        // De hace 3 meses hasta el periodo pedido (2 meses atrás) = 2 periodos.
+        $this->assertSame(2, $renta->pagos()->count());
+
+        // Ejecutarlo de nuevo con el mismo periodo no debe duplicar nada (idempotente).
+        $this->actingAs($admin)
+            ->post(route('rentas.generar-todas'), ['periodo' => $periodoPasado])
+            ->assertRedirect();
+        $this->assertSame(2, $renta->pagos()->count());
+    }
+
+    public function test_reporte_de_rentas_generadas_filtra_por_inquilino_y_muestra_totales(): void
+    {
+        $renta = $this->renta(['inquilino' => 'Ana López', 'fecha_inicio' => now()->startOfMonth()->toDateString()]);
+        $renta->generarMensualidadesPendientes();
+        $otra = $this->renta(['inquilino' => 'Carlos Ruiz', 'fecha_inicio' => now()->startOfMonth()->toDateString()]);
+        $otra->generarMensualidadesPendientes();
+
+        $this->actingAs($this->admin())
+            ->get(route('rentas.reporte', ['q' => 'Ana']))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Rentas/Reporte')
+                ->has('pagos', 1)
+                ->where('pagos.0.renta.inquilino', 'Ana López')
+                ->where('resumen.cantidad', 1));
+    }
+
     public function test_eliminar_movimiento_de_cobro_revierte_el_pago_aplicado(): void
     {
         $renta = $this->renta(['fecha_inicio' => now()->startOfMonth()->toDateString(), 'tasa_moratoria' => 0, 'recargo_fijo' => 0]);

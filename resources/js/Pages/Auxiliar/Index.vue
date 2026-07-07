@@ -70,14 +70,19 @@ function exportCsv() {
 </script>
 
 <template>
-    <Head title="Auxiliar bancario" />
+    <Head title="Bitácora libre" />
 
     <AuthenticatedLayout>
         <template #header>
-            <h2 class="text-xl font-bold tracking-tight text-slate-800">Auxiliar bancario</h2>
+            <h2 class="text-xl font-bold tracking-tight text-slate-800">Bitácora libre (borrador, sin ligar a rentas)</h2>
         </template>
 
         <div class="mx-auto max-w-[1400px] space-y-5">
+            <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                Esta bitácora es un borrador de captura libre guardado solo en este navegador: <strong>no afecta el saldo de las rentas</strong>.
+                Para registrar cobros de renta que sí se descuenten del adeudo de un arrendatario, usa
+                <Link :href="route('movimientos.index')" class="font-semibold underline hover:text-amber-900">Auxiliar bancario</Link>.
+            </div>
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p class="max-w-3xl text-sm text-slate-600">
                     Captura tipo hoja de cálculo. Cada celda (excepto Fecha, Ingreso y Egreso) toma sus valores de una lista

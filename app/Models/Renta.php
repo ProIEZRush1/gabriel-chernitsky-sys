@@ -243,20 +243,26 @@ class Renta extends Model
     }
 
     /**
-     * Genera automáticamente las mensualidades pendientes: una por cada mes
-     * desde el inicio del contrato (o el alta de la renta) hasta el mes actual.
-     * Las rentas se generan SOLO de forma automática, no manual.
+     * Genera las mensualidades pendientes (cuentas por cobrar): una por cada mes
+     * desde el inicio del contrato (o el alta de la renta) hasta el mes indicado
+     * (por defecto, el mes actual). Ocurre automáticamente el día 1 de cada mes
+     * (ver comando `rentas:generar-mensualidades` y el scheduler) y también se
+     * puede disparar de forma manual (botón "Generar rentas del mes"). Es
+     * idempotente: nunca duplica un periodo ya generado para esta renta.
      *
+     * @param  string|null  $hastaPeriodo  Periodo límite "YYYY-MM" (incluido). Por defecto, el mes actual.
      * @return int Número de mensualidades creadas.
      */
-    public function generarMensualidadesPendientes(): int
+    public function generarMensualidadesPendientes(?string $hastaPeriodo = null): int
     {
         $inicio = $this->fecha_inicio
             ? Carbon::parse($this->fecha_inicio)
             : ($this->created_at ? Carbon::parse($this->created_at) : Carbon::today());
 
         $cursor = $inicio->copy()->startOfMonth();
-        $fin = Carbon::today()->startOfMonth();
+        $fin = $hastaPeriodo
+            ? Carbon::createFromFormat('Y-m', $hastaPeriodo)->startOfMonth()
+            : Carbon::today()->startOfMonth();
 
         $existentes = $this->pagos()->pluck('periodo')->all();
         $creadas = 0;

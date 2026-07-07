@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\PagoRenta;
 use App\Models\Propiedad;
 use App\Models\Renta;
 use Illuminate\Http\Request;
@@ -42,6 +43,51 @@ class RentaController extends Controller
     {
         return Inertia::render('Rentas/Create', [
             'propiedades' => Propiedad::orderBy('nombre')->get(['id', 'nombre']),
+        ]);
+    }
+
+    /**
+     * Reporte de TODAS las rentas generadas (mensualidades/cuentas por cobrar)
+     * de todos los arrendatarios, filtrable por inquilino, mes, rango de
+     * fechas e importe (monto de la mensualidad).
+     */
+    public function reporte(Request $request)
+    {
+        // Antes de listar, se pone al día la generación de mensualidades de
+        // cada renta (igual que el listado principal de Rentas).
+        Renta::all()->each(fn (Renta $renta) => $renta->generarMensualidadesPendientes());
+
+        $q = $request->input('q');
+        $mes = $request->input('mes');
+        $desde = $request->input('desde');
+        $hasta = $request->input('hasta');
+        $montoMin = $request->input('monto_min');
+        $montoMax = $request->input('monto_max');
+
+        $pagos = PagoRenta::query()
+            ->with('renta:id,inquilino,propiedad_id')
+            ->with('renta.propiedad:id,nombre')
+            ->when($q, fn ($query) => $query->whereHas('renta', fn ($sub) => $sub->where('inquilino', 'like', "%{$q}%")))
+            ->when($mes, fn ($query) => $query->where('periodo', $mes))
+            ->when($desde, fn ($query) => $query->whereDate('fecha_vencimiento_renta', '>=', $desde))
+            ->when($hasta, fn ($query) => $query->whereDate('fecha_vencimiento_renta', '<=', $hasta))
+            ->when($montoMin !== null && $montoMin !== '', fn ($query) => $query->where('monto', '>=', $montoMin))
+            ->when($montoMax !== null && $montoMax !== '', fn ($query) => $query->where('monto', '<=', $montoMax))
+            ->orderByDesc('periodo')
+            ->get();
+
+        return Inertia::render('Rentas/Reporte', [
+            'pagos' => $pagos,
+            'filters' => [
+                'q' => $q, 'mes' => $mes, 'desde' => $desde, 'hasta' => $hasta,
+                'monto_min' => $montoMin, 'monto_max' => $montoMax,
+            ],
+            'resumen' => [
+                'cantidad' => $pagos->count(),
+                'facturado' => round($pagos->sum(fn ($p) => (float) $p->total_periodo), 2),
+                'cobrado' => round($pagos->sum(fn ($p) => (float) $p->monto_pagado), 2),
+                'saldo' => round($pagos->sum(fn ($p) => (float) $p->saldo), 2),
+            ],
         ]);
     }
 
@@ -95,19 +141,27 @@ class RentaController extends Controller
     }
 
     /**
-     * Genera manualmente las mensualidades pendientes de TODAS las rentas
-     * (lo mismo que ocurre automáticamente cada día 1 de mes).
+     * Genera manualmente las mensualidades ("Generar rentas del mes") de TODAS
+     * las rentas hasta el periodo mes/año indicado (por defecto, el mes actual).
+     * Es lo mismo que ocurre automáticamente cada día 1 de mes, e idempotente:
+     * nunca duplica un periodo ya generado.
      */
-    public function generarTodas()
+    public function generarTodas(Request $request)
     {
+        $data = $request->validate([
+            'periodo' => ['nullable', 'string', 'regex:/^\d{4}-\d{2}$/'],
+        ]);
+
         $creadas = 0;
         foreach (Renta::all() as $renta) {
-            $creadas += $renta->generarMensualidadesPendientes();
+            $creadas += $renta->generarMensualidadesPendientes($data['periodo'] ?? null);
         }
 
-        return back()->with('success', $creadas > 0
+        $mensaje = $creadas > 0
             ? "Se generaron {$creadas} mensualidad(es) en total."
-            : 'No hay mensualidades nuevas por generar; todo está al día.');
+            : 'No hay mensualidades nuevas por generar; todo está al día.';
+
+        return back()->with('success', $mensaje);
     }
 
     /**
