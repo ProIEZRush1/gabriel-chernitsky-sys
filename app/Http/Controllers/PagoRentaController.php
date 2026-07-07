@@ -27,6 +27,7 @@ class PagoRentaController extends Controller
         }
 
         $renta->pagos()->create($this->buildAttributes($renta, $data));
+        $renta->sincronizarEstadoPago();
 
         return back()->with('success', "Mensualidad {$data['periodo']} registrada.");
     }
@@ -68,6 +69,7 @@ class PagoRentaController extends Controller
             'notas' => $data['notas'] ?? $pago->notas,
             'estado' => $this->estadoPara($monto, $recargo, $pagado),
         ]);
+        $renta->sincronizarEstadoPago();
 
         return back()->with('success', "Mensualidad {$pago->periodo} actualizada.");
     }
@@ -75,7 +77,9 @@ class PagoRentaController extends Controller
     public function destroy(PagoRenta $pago)
     {
         $periodo = $pago->periodo;
+        $renta = $pago->renta;
         $pago->delete();
+        $renta->sincronizarEstadoPago();
 
         return back()->with('success', "Mensualidad {$periodo} eliminada.");
     }

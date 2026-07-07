@@ -224,6 +224,25 @@ class Renta extends Model
     }
 
     /**
+     * Mantiene "estado_pago" (usado en filtros, listas y el dashboard) alineado
+     * con el adeudo real calculado a partir de las mensualidades y cobros. Sin
+     * esto, el campo quedaba fijo en lo último capturado a mano y no reflejaba
+     * pagos o cobros aplicados después, mostrando un estado incorrecto.
+     */
+    public function sincronizarEstadoPago(): void
+    {
+        $this->unsetRelation('pagos');
+        $nuevo = ((float) $this->saldo_cuenta) > 0
+            ? 'con_adeudo'
+            : ($this->estado_pago === 'pagada' ? 'pagada' : 'al_corriente');
+
+        if ($nuevo !== $this->estado_pago) {
+            $this->estado_pago = $nuevo;
+            $this->save();
+        }
+    }
+
+    /**
      * Genera automáticamente las mensualidades pendientes: una por cada mes
      * desde el inicio del contrato (o el alta de la renta) hasta el mes actual.
      * Las rentas se generan SOLO de forma automática, no manual.
@@ -260,6 +279,8 @@ class Renta extends Model
             }
             $cursor->addMonth();
         }
+
+        $this->sincronizarEstadoPago();
 
         return $creadas;
     }
@@ -308,6 +329,8 @@ class Renta extends Model
         $movimiento->aplicado_detalle = $detalle;
         $movimiento->excedente_aplicado = max(0, round($restante, 2));
         $movimiento->save();
+
+        $this->sincronizarEstadoPago();
     }
 
     /**
@@ -332,6 +355,8 @@ class Renta extends Model
         $movimiento->aplicado_detalle = [];
         $movimiento->excedente_aplicado = 0;
         $movimiento->save();
+
+        $this->sincronizarEstadoPago();
     }
 
     /**

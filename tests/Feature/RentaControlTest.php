@@ -164,6 +164,34 @@ class RentaControlTest extends TestCase
         $this->assertEquals('excedente', $renta->estado_cuenta);
     }
 
+    public function test_estado_pago_se_sincroniza_automaticamente_con_el_adeudo_real(): void
+    {
+        // Antes de la mensualidad se marca "al corriente" a mano (dato desactualizado).
+        $renta = $this->renta([
+            'fecha_inicio' => now()->startOfMonth()->toDateString(),
+            'estado_pago' => 'al_corriente',
+            'tasa_moratoria' => 0,
+            'recargo_fijo' => 0,
+        ]);
+        $renta->generarMensualidadesPendientes();
+
+        // Con una mensualidad pendiente de $10,000, el estado real es "con adeudo",
+        // sin que nadie lo haya cambiado a mano.
+        $this->assertSame('con_adeudo', $renta->refresh()->estado_pago);
+
+        $this->actingAs($this->admin())->post(route('movimientos.store'), [
+            'auxiliar' => 'Cuenta Rentas BBVA',
+            'tipo' => 'cobro',
+            'concepto' => 'Cobro de renta Ana López',
+            'monto' => 10000,
+            'fecha' => now()->toDateString(),
+            'renta_id' => $renta->id,
+        ])->assertRedirect();
+
+        // Al liquidarse el cobro, el estado vuelve a "al corriente" automáticamente.
+        $this->assertSame('al_corriente', $renta->refresh()->estado_pago);
+    }
+
     public function test_eliminar_movimiento_de_cobro_revierte_el_pago_aplicado(): void
     {
         $renta = $this->renta(['fecha_inicio' => now()->startOfMonth()->toDateString(), 'tasa_moratoria' => 0, 'recargo_fijo' => 0]);
