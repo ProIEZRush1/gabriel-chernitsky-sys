@@ -45,6 +45,17 @@ chmod -R ug+rwX storage bootstrap/cache "$DB_DIR" 2>/dev/null || true
 # 5. Cache config (uses the exported APP_KEY). Best effort.
 php artisan config:cache || true
 
+# 5b. Scheduler loop: this image has no system cron, so nothing would ever call
+#     `php artisan schedule:run` and the "generar mensualidades el día 1" job (in
+#     routes/console.php) would silently never fire. Run it ourselves every 60s,
+#     forever, in the background — equivalent to a `* * * * *` cron entry.
+(
+    while true; do
+        php artisan schedule:run >> storage/logs/scheduler.log 2>&1
+        sleep 60
+    done
+) &
+
 # 6. Serve under an auto-respawn loop: if a request ever crashes the dev server, it restarts
 #    immediately, so the app is never permanently down (no `set -e`, so the loop always continues).
 while true; do
